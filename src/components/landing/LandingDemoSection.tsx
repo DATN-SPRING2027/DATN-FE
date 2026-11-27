@@ -159,7 +159,7 @@ export default function LandingDemoSection() {
                 <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F56]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#27C93F]" />
-                <span className="ml-1.5 font-bold text-[#0F172A] dark:text-white">
+                <span className="ms-1.5 font-bold text-[#0F172A] dark:text-white">
                   Continuum AI Studio
                 </span>
                 <span className="text-slate-300">/</span>
@@ -438,7 +438,7 @@ export default function LandingDemoSection() {
                       <p>
                         Dựa trên kho tri thức đã được Tech Lead Trần Thị B xác nhận:
                       </p>
-                      <ul className="list-disc pl-4 space-y-1.5 text-[11px]">
+                      <ul className="list-disc ps-4 space-y-1.5 text-[11px]">
                         <li>
                           <strong>Lý do kỹ thuật: </strong>
                           Cụm Redis đã có sẵn cho Session Cache. Việc dùng Redis Pub/Sub giúp đáp ứng tải 100k users với latency dưới 15ms mà không cần dựng thêm cụm RabbitMQ{" "}

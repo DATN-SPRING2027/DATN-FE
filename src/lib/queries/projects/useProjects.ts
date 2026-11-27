@@ -100,8 +100,8 @@ export function useProjectsQuery(
     queryFn: ({ signal }) => fetchProjectsPage(input, signal),
     enabled: Boolean(organizationId) && options.enabled !== false,
     retry: false,
-    staleTime: options.staleTime ?? 15_000,
-    refetchOnWindowFocus: options.refetchOnWindowFocus ?? true,
+    staleTime: options.staleTime ?? 30_000,
+    refetchOnWindowFocus: options.refetchOnWindowFocus ?? false,
   });
 }
 
@@ -131,8 +131,8 @@ export function useInfiniteProjectsQuery(
     },
     enabled: Boolean(organizationId) && options.enabled !== false,
     retry: false,
-    staleTime: options.staleTime ?? 0,
-    refetchOnWindowFocus: options.refetchOnWindowFocus ?? true,
+    staleTime: options.staleTime ?? 30_000,
+    refetchOnWindowFocus: options.refetchOnWindowFocus ?? false,
   });
 }
 
@@ -146,8 +146,8 @@ export function useProjectQuery(organizationId: string, id: string) {
       }),
     enabled: Boolean(organizationId && id),
     retry: false,
-    staleTime: 15_000,
-    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }
 export function useCreateProjectMutation(organizationId: string) {
@@ -184,9 +184,6 @@ export function useCreateProjectMutation(organizationId: string) {
 export type UpdateProjectInput = Readonly<{
   name?: string;
   description?: string | null;
-  category?: string | null;
-  coverImageUrl?: string | null;
-  icon?: string | null;
 }>;
 
 export function useUpdateProjectMutation(

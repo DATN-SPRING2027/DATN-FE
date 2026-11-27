@@ -226,5 +226,36 @@ describe("ChatAttachments — Image Lightbox and Document Attachments", () => {
     });
     expect(screen.getByText("2 / 2")).toBeInTheDocument();
   });
+
+  it("rewrites relative /api/v1/ attachment URLs to Next.js BFF /api/backend/ paths", async () => {
+    vi.mocked(chatApi.attachmentDownloadUrl).mockResolvedValueOnce({
+      url: "/api/v1/chat/conversations/conv-1/attachments/att-img-1/content",
+      expiresInSeconds: 300,
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ChatAttachments
+          conversationId="conv-1"
+          attachments={[imageAttachment]}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    const img = await screen.findByAltText("screenshot.png");
+    expect(img).toHaveAttribute(
+      "src",
+      "/api/backend/chat/conversations/conv-1/attachments/att-img-1/content",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "View image screenshot.png" }),
+    );
+    const downloadLink = screen.getByRole("link", { name: "Download image" });
+    expect(downloadLink).toHaveAttribute(
+      "href",
+      "/api/backend/chat/conversations/conv-1/attachments/att-img-1/content",
+    );
+  });
 });
 

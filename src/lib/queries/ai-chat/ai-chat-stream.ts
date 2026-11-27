@@ -1,23 +1,14 @@
-import { ApiError, getApiBaseUrl } from "@/lib/api-client";
+import {
+  ApiError,
+  getApiBaseUrl,
+  getCsrfToken,
+  getExpectedOrganizationId,
+} from "@/lib/api-client";
 import type { AiChatStreamEvent } from "./ai-chat.types";
 
 export function aiChatCsrfHeaders(): Record<string, string> {
-  if (typeof document === "undefined") return {};
-  const parts = document.cookie.split(";").map((part) => part.trim());
-  for (const prefix of [
-    "__Host-csrf=",
-    "continuum_csrf=",
-    "csrf_token=",
-  ] as const) {
-    const cookie = parts.find((part) => part.startsWith(prefix));
-    if (cookie) {
-      const value = cookie.slice(prefix.length);
-      if (value) {
-        return { "X-CSRF-Token": decodeURIComponent(value) };
-      }
-    }
-  }
-  return {};
+  const token = getCsrfToken();
+  return token ? { "X-CSRF-Token": token } : {};
 }
 
 export interface StreamAiChatAskInput {
@@ -111,26 +102,36 @@ async function consumeAiChatSseStream(
   signal: AbortSignal | undefined,
   onEvent: (event: AiChatStreamEvent) => void,
 ): Promise<void> {
-  const headers = new Headers({
-    "Content-Type": "application/json",
-    Accept: "text/event-stream",
-    ...aiChatCsrfHeaders(),
-  });
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers,
-      credentials: "include",
-      cache: "no-store",
-      signal,
-      body: JSON.stringify(body),
+  const buildHeaders = () => {
+    const nextHeaders = new Headers({
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      ...aiChatCsrfHeaders(),
     });
-  } catch (error) {
-    if (signal?.aborted || isAbortError(error)) throw error;
-    throw streamInterruptedError();
-  }
+    const expectedOrg = getExpectedOrganizationId();
+    if (expectedOrg) {
+      nextHeaders.set("X-Expected-Organization-Id", expectedOrg);
+    }
+    return nextHeaders;
+  };
+
+  const executeFetch = async () => {
+    try {
+      return await fetch(url, {
+        method: "POST",
+        headers: buildHeaders(),
+        credentials: "include",
+        cache: "no-store",
+        signal,
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error;
+      throw streamInterruptedError();
+    }
+  };
+
+  const response = await executeFetch();
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "Unknown error");

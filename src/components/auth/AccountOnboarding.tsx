@@ -1,7 +1,7 @@
 "use client";
 
 import Alert from "@/components/ui/alert/Alert";
-import { LogOutIcon } from "@/icons";
+import { ChevronLeftIcon, LogOutIcon } from "@/icons";
 import { useRouter } from "@/i18n/navigation";
 import {
   useCurrentUserQuery,
@@ -9,17 +9,31 @@ import {
 } from "@/lib/queries/auth/useAuth";
 import {
   useCreateOrganizationMutation,
+  useMyOrganizationInvitationsQuery,
   useOrganizationOptionsQuery,
   useSelectOrganizationMutation,
 } from "@/lib/queries/auth/useAccountOnboarding";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import OrganizationChoices from "./OrganizationChoices";
 import OrganizationCreateForm from "./OrganizationCreateForm";
 import OrganizationInvitations from "./OrganizationInvitations";
 import OrganizationMembershipEvents from "./OrganizationMembershipEvents";
 import OrganizationTransition from "./OrganizationTransition";
 import styles from "./auth-experience.module.css";
+
+const subscribeNoop = () => () => undefined;
+
+function getCreateModeFromLocation(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("mode") === "create";
+}
 
 function userInitials(name: string, email: string) {
   const source = name.trim() || email.trim();
@@ -40,48 +54,87 @@ export default function AccountOnboarding() {
   const isAccount = current.data?.context === "ACCOUNT";
   const canSelectOrganization = Boolean(current.data);
   const organizations = useOrganizationOptionsQuery(canSelectOrganization);
+  const invitations = useMyOrganizationInvitationsQuery(isAccount);
   const create = useCreateOrganizationMutation();
   const select = useSelectOrganizationMutation();
   const logout = useLogoutMutation();
-  const [showCreateForm, setShowCreateForm] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("mode") === "create",
+  const initialCreateMode = useSyncExternalStore(
+    subscribeNoop,
+    getCreateModeFromLocation,
+    () => false,
   );
+  const [createFormOverride, setCreateFormOverride] = useState<boolean | null>(
+    null,
+  );
+  const showCreateForm = createFormOverride ?? initialCreateMode;
+  const setShowCreateForm = useCallback((next: boolean) => {
+    setCreateFormOverride(next);
+  }, []);
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [transitionOrg, setTransitionOrg] = useState<{
     id: string;
     name: string;
   } | null>(null);
   const [transitionReady, setTransitionReady] = useState(false);
+  const autoSelectedRef = useRef(false);
 
   useEffect(() => {
     if (current.isError) router.replace("/signin");
   }, [current.data, current.isError, router]);
 
-  async function selectAndEnter(id: string, fallbackName?: string) {
-    if (selectingId || select.isPending) return;
-    const resolvedName =
-      organizations.data?.find((org) => org.id === id)?.name?.trim() ||
-      fallbackName?.trim() ||
-      "Continuum AI";
+  const selectAndEnter = useCallback(
+    async (id: string, fallbackName?: string) => {
+      if (selectingId || select.isPending) return;
+      const resolvedName =
+        organizations.data?.find((org) => org.id === id)?.name?.trim() ||
+        fallbackName?.trim() ||
+        "Continuum AI";
 
-    setSelectingId(id);
-    setTransitionReady(false);
-    setTransitionOrg({ id, name: resolvedName });
-    try {
-      await select.mutateAsync(id);
-      if ("prefetch" in router && typeof router.prefetch === "function") {
-        router.prefetch("/dashboard");
-      }
-      setTransitionReady(true);
-    } catch {
-      // The mutation error is shown below the organization choices.
-      setTransitionOrg(null);
+      setSelectingId(id);
       setTransitionReady(false);
-      setSelectingId(null);
+      setTransitionOrg({ id, name: resolvedName });
+      try {
+        await select.mutateAsync(id);
+        if ("prefetch" in router && typeof router.prefetch === "function") {
+          router.prefetch("/dashboard");
+        }
+        setTransitionReady(true);
+      } catch {
+        // The mutation error is shown below the organization choices.
+        setTransitionOrg(null);
+        setTransitionReady(false);
+        setSelectingId(null);
+      }
+    },
+    [organizations.data, router, select, selectingId],
+  );
+
+  // Skip the extra click for single-organization accounts with no pending invitations.
+  const hasCheckedInvitations =
+    !isAccount ||
+    (Boolean(invitations.data) && !invitations.isLoading && !invitations.isError);
+  const hasPendingInvitations = Boolean(
+    invitations.data?.data.some((item) => item.status === "PENDING"),
+  );
+  const singleOrganization =
+    isAccount &&
+    !showCreateForm &&
+    organizations.isSuccess &&
+    organizations.data.length === 1 &&
+    hasCheckedInvitations &&
+    !hasPendingInvitations
+      ? organizations.data[0]
+      : null;
+
+  useEffect(() => {
+    if (!singleOrganization || autoSelectedRef.current || selectingId || select.isPending) {
+      return;
     }
-  }
+    autoSelectedRef.current = true;
+    // Triggering async navigation to the user's sole workspace.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void selectAndEnter(singleOrganization.id, singleOrganization.name);
+  }, [select.isPending, selectAndEnter, selectingId, singleOrganization]);
 
   async function createAndEnter(input: { name: string; slug: string }) {
     if (create.isPending || select.isPending || selectingId) return;
@@ -182,20 +235,10 @@ export default function AccountOnboarding() {
                 onClick={() => setShowCreateForm(false)}
                 className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200/90 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-300"
               >
-                <svg
+                <ChevronLeftIcon
                   aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
                   className="size-4 shrink-0 rtl:rotate-180"
-                >
-                  <path
-                    d="M12.6667 8H3.33333M3.33333 8L7.33333 4M3.33333 8L7.33333 12"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                />
                 <span>{t("onboardingBackToOrganizations")}</span>
               </button>
 

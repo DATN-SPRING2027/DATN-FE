@@ -94,7 +94,7 @@ export default function LandingProblemSolution() {
 
           {/* Right Column: Continuum AI (Connected Knowledge Stream) */}
           <div className="relative flex flex-col justify-between rounded-3xl border-2 border-blue-500/80 bg-white p-5 sm:p-6 shadow-xl shadow-blue-500/10 dark:border-blue-500/70 dark:bg-gray-800">
-            <div className="pointer-events-none absolute -top-3 right-6 rounded-full bg-blue-600 px-3 py-0.5 text-[10px] font-black uppercase tracking-wide text-white shadow-md shadow-blue-500/30">
+            <div className="pointer-events-none absolute -top-3 end-6 rounded-full bg-blue-600 px-3 py-0.5 text-[10px] font-black uppercase tracking-wide text-white shadow-md shadow-blue-500/30">
               Chuỗi tri thức Continuum AI
             </div>
 
@@ -112,13 +112,13 @@ export default function LandingProblemSolution() {
               <div className="space-y-2.5 relative">
                 {/* Visual Lineage Connector */}
                 <div
-                  className="pointer-events-none absolute left-3 top-3 bottom-3 w-0.5 bg-gradient-to-b from-blue-600 via-indigo-500 to-blue-400"
+                  className="pointer-events-none absolute start-3 top-3 bottom-3 w-0.5 bg-gradient-to-b from-blue-600 via-indigo-500 to-blue-400"
                   aria-hidden="true"
                 />
 
                 {/* Node 1: Work Note */}
-                <div className="relative pl-7">
-                  <div className="absolute left-1.5 top-2.5 h-3 w-3 rounded-full border-2 border-white bg-blue-600 shadow-2xs dark:border-gray-800" />
+                <div className="relative ps-7">
+                  <div className="absolute start-1.5 top-2.5 h-3 w-3 rounded-full border-2 border-white bg-blue-600 shadow-2xs dark:border-gray-800" />
                   <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-2.5 text-xs dark:border-gray-700 dark:bg-gray-900">
                     <span className="font-extrabold text-blue-700 dark:text-blue-400 block mb-0.5">
                       Work Note WN-104 (Nguyễn Văn A)
@@ -130,8 +130,8 @@ export default function LandingProblemSolution() {
                 </div>
 
                 {/* Node 2: Evidence */}
-                <div className="relative pl-7">
-                  <div className="absolute left-1.5 top-2.5 h-3 w-3 rounded-full border-2 border-white bg-indigo-600 shadow-2xs dark:border-gray-800" />
+                <div className="relative ps-7">
+                  <div className="absolute start-1.5 top-2.5 h-3 w-3 rounded-full border-2 border-white bg-indigo-600 shadow-2xs dark:border-gray-800" />
                   <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-2.5 text-xs dark:border-gray-700 dark:bg-gray-900">
                     <span className="font-extrabold text-indigo-700 dark:text-indigo-400 block mb-1 text-[11px]">
                       Bằng chứng xác thực gắn kết:
@@ -148,8 +148,8 @@ export default function LandingProblemSolution() {
                 </div>
 
                 {/* Node 3: Tech Lead Verification */}
-                <div className="relative pl-7">
-                  <div className="absolute left-1.5 top-2.5 h-3 w-3 rounded-full border-2 border-white bg-blue-600 shadow-2xs dark:border-gray-800" />
+                <div className="relative ps-7">
+                  <div className="absolute start-1.5 top-2.5 h-3 w-3 rounded-full border-2 border-white bg-blue-600 shadow-2xs dark:border-gray-800" />
                   <div className="rounded-xl border border-blue-200 bg-white p-2.5 text-xs shadow-2xs dark:border-gray-700 dark:bg-gray-900">
                     <div className="flex items-center gap-1.5 font-bold text-blue-800 dark:text-blue-300 text-[11px]">
                       <CheckCircleIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />

@@ -33,28 +33,40 @@ function mergeMessages(
   return output;
 }
 
-export default getRequestConfig(async ({ requestLocale }) => {
-  const requested = await requestLocale;
-  const locale = routing.locales.includes(requested as Locale)
-    ? (requested as Locale)
-    : routing.defaultLocale;
+const mergedMessagesCache = new Map<Locale, Record<string, MessageNode>>();
+
+async function loadLocaleMessages(
+  locale: Locale,
+): Promise<Record<string, MessageNode>> {
+  const cached = mergedMessagesCache.get(locale);
+  if (cached) {
+    return cached;
+  }
 
   const enMessages = (await import("../messages/en.json")).default as Record<
     string,
     MessageNode
   >;
   if (locale === "en") {
-    return {
-      locale,
-      messages: enMessages,
-    };
+    mergedMessagesCache.set("en", enMessages);
+    return enMessages;
   }
 
   const localeMessages = (await import(`../messages/${locale}.json`))
     .default as Record<string, MessageNode>;
+  const merged = mergeMessages(enMessages, localeMessages);
+  mergedMessagesCache.set(locale, merged);
+  return merged;
+}
+
+export default getRequestConfig(async ({ requestLocale }) => {
+  const requested = await requestLocale;
+  const locale = routing.locales.includes(requested as Locale)
+    ? (requested as Locale)
+    : routing.defaultLocale;
 
   return {
     locale,
-    messages: mergeMessages(enMessages, localeMessages),
+    messages: await loadLocaleMessages(locale),
   };
 });

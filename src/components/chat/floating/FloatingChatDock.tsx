@@ -166,8 +166,15 @@ export default function FloatingChatDock() {
     [effectiveVisibleWindowLimit, openWindowIds],
   );
 
+  const isRealtimeConnected = useFloatingChatStore(
+    (state) =>
+      Boolean(actorId && organizationId) &&
+      state.realtimeConnectedOwner === `${actorId}:${organizationId}`,
+  );
+  const hasVisibleChatUi = isLauncherOpen || visibleOpenWindowIds.length > 0;
   const conversationsQuery = useChatConversationsQuery(organizationId, "", {
-    refetchInterval: IS_TEST_ENV ? false : 15_000,
+    refetchInterval:
+      IS_TEST_ENV || isRealtimeConnected || !hasVisibleChatUi ? false : 30_000,
     refetchIntervalInBackground: false,
   });
   const conversationsAccessLost =

@@ -112,8 +112,8 @@ export default function MiniChatWindow({
     refetchInterval: IS_TEST_ENV
       ? false
       : connection === "connected"
-        ? 30_000
-        : 5_000,
+        ? false
+        : 10_000,
     refetchIntervalInBackground: false,
   });
   const hasContextInRegularPage = Boolean(
@@ -240,12 +240,22 @@ export default function MiniChatWindow({
       .catch(() => undefined);
   }, [activeConversation?.markedUnread, conversationId, organizationId, queryClient]);
 
+  const latestIncomingRegularMessageId = useMemo(() => {
+    const regular = messagesQuery.data?.data ?? [];
+    for (let i = regular.length - 1; i >= 0; i -= 1) {
+      if (regular[i]!.senderId !== actorId) return regular[i]!.id;
+    }
+    return undefined;
+  }, [actorId, messagesQuery.data?.data]);
+
   useEffect(() => {
     const readTargetId = latestRegularMessageId ?? latestDisplayedMessageId;
     if (!readTargetId || !conversationId) return;
-    void chatApi
-      .markDelivered(conversationId, readTargetId)
-      .catch(() => undefined);
+    if (latestIncomingRegularMessageId) {
+      void chatApi
+        .markDelivered(conversationId, latestIncomingRegularMessageId)
+        .catch(() => undefined);
+    }
 
     const markVisibleRead = () => {
       if (document.visibilityState !== "visible") return;
@@ -266,6 +276,7 @@ export default function MiniChatWindow({
   }, [
     conversationId,
     latestDisplayedMessageId,
+    latestIncomingRegularMessageId,
     latestRegularMessageId,
     organizationId,
     queryClient,

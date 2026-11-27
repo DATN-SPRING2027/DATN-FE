@@ -2,12 +2,20 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notifyAuthSessionChanged } from "@/lib/queries/auth/session-sync";
-import { ApiError, apiClient } from "@/lib/api-client";
+import {
+  ApiError,
+  apiClient,
+  type ApiRequestOptions,
+  getCsrfToken,
+  setAuthContextHint,
+  setExpectedOrganizationId,
+} from "@/lib/api-client";
+import { clearAllClientSessionCaches } from "@/lib/session-cleanup";
 import { platformSessionQueryKey } from "./platform-session.key";
 
 export function platformApiClient<T>(
   endpoint: string,
-  options?: RequestInit,
+  options?: ApiRequestOptions,
 ): Promise<T> {
   const timeoutSignal = AbortSignal.timeout(15_000);
   const signal = options?.signal
@@ -331,11 +339,7 @@ function parseMembership(
 export function csrfHeaders(idempotencyKey?: string): Headers {
   if (typeof document === "undefined")
     throw new ApiError(403, "AUTH_CSRF_INVALID", "CSRF context is unavailable");
-  const cookie = document.cookie
-    .split(";")
-    .map((item) => item.trim())
-    .find((item) => item.startsWith("__Host-csrf="));
-  const token = cookie?.slice("__Host-csrf=".length);
+  const token = getCsrfToken();
   if (!token)
     throw new ApiError(403, "AUTH_CSRF_INVALID", "CSRF token is unavailable");
   const headers = new Headers({ "X-CSRF-Token": token });
@@ -360,10 +364,23 @@ export const platformKeys = {
   audit: () => [...platformKeys.all, "audit"] as const,
 };
 
-export async function loadPlatformSession() {
-  const value: unknown = await platformApiClient("/auth/platform/me", {
-    cache: "no-store",
-  });
+export async function loadPlatformSession(options?: {
+  skipSessionRecovery?: boolean;
+  signal?: AbortSignal;
+}) {
+  let value: unknown;
+  try {
+    value = await platformApiClient("/auth/platform/me", {
+      cache: "no-store",
+      ...(options?.signal ? { signal: options.signal } : {}),
+      ...(options?.skipSessionRecovery ? { skipSessionRecovery: true } : {}),
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      setAuthContextHint(null);
+    }
+    throw error;
+  }
   if (
     !record(value) ||
     typeof value.id !== "string" ||
@@ -378,6 +395,7 @@ export async function loadPlatformSession() {
     )
   )
     throw invalidResponse();
+  setAuthContextHint("PLATFORM");
   return {
     id: value.id,
     email: value.email,
@@ -390,7 +408,7 @@ export async function loadPlatformSession() {
 export function usePlatformSessionQuery() {
   return useQuery({
     queryKey: platformKeys.session(),
-    queryFn: loadPlatformSession,
+    queryFn: ({ signal }) => loadPlatformSession({ signal }),
     retry: false,
     staleTime: 20_000,
   });
@@ -748,6 +766,9 @@ export function usePlatformLogoutMutation() {
         cache: "no-store",
       }),
     onSuccess: () => {
+      setAuthContextHint(null);
+      setExpectedOrganizationId(null);
+      clearAllClientSessionCaches({ clearStorage: true });
       client.clear();
       notifyAuthSessionChanged();
     },

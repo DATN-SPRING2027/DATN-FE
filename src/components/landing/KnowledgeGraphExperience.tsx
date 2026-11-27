@@ -178,11 +178,11 @@ export default function KnowledgeGraphExperience() {
     >
       {/* Soft Blue & Indigo Ambient Glows (Clean Light Aesthetic) */}
       <div
-        className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-blue-500/8 blur-[100px]"
+        className="pointer-events-none absolute -top-40 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 h-[500px] w-[800px] rounded-full bg-blue-500/8 blur-[100px]"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute bottom-0 right-10 h-[400px] w-[400px] rounded-full bg-indigo-500/6 blur-[80px]"
+        className="pointer-events-none absolute bottom-0 end-10 h-[400px] w-[400px] rounded-full bg-indigo-500/6 blur-[80px]"
         aria-hidden="true"
       />
 

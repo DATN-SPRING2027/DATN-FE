@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildProjectCitationHref,
+  parseContinuumCitationTarget,
   resolveSessionCitationPreview,
   tokenizeTextWithCitations,
 } from "./citation-utils";
@@ -76,5 +78,44 @@ describe("tokenizeTextWithCitations", () => {
         messagesById,
       ),
     ).toBe("Turns #1–#2 · CONFIRMED — Chốt dùng PostgreSQL + Qdrant cho SAG.");
+  });
+
+  it("parses Continuum work_report and work_note citation URIs and builds artifact deep links", () => {
+    const projectId = "507f1f77bcf86cd7994390a1";
+    const reportId = "507f1f77bcf86cd7994390b2";
+    const noteId = "507f1f77bcf86cd7994390c3";
+
+    const parsedReport = parseContinuumCitationTarget({
+      documentId: `continuum:work_report:${reportId}`,
+    });
+    expect(parsedReport).toEqual({
+      sourceKind: "work_report",
+      entityId: reportId,
+      hasExplicitKind: true,
+    });
+    expect(
+      buildProjectCitationHref(
+        projectId,
+        parsedReport.entityId!,
+        parsedReport.sourceKind,
+      ),
+    ).toBe(`/projects/${projectId}/work-reports?reportId=${reportId}`);
+
+    const parsedNote = parseContinuumCitationTarget({
+      documentId: noteId,
+      sourceKind: "work_note",
+    });
+    expect(parsedNote).toEqual({
+      sourceKind: "work_note",
+      entityId: noteId,
+      hasExplicitKind: true,
+    });
+    expect(
+      buildProjectCitationHref(
+        projectId,
+        parsedNote.entityId!,
+        parsedNote.sourceKind,
+      ),
+    ).toBe(`/projects/${projectId}/work-notes?noteId=${noteId}`);
   });
 });

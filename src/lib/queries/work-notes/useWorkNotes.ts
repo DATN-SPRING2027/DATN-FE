@@ -1,7 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import {
+  apiClient,
+  getCsrfToken,
+  getExpectedOrganizationId,
+  recoverAuthSession,
+} from "@/lib/api-client";
 
 export type WorkNotePermissions = Readonly<{
   canCreate: boolean;
@@ -458,6 +463,23 @@ type DocumentAction =
 type ReportAction = "submit" | "approve" | "request-changes" | "reject";
 type TaskNoteAction = "approve" | "request-changes" | "reject";
 
+async function fetchWithSessionRecovery(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const orgId = getExpectedOrganizationId();
+  if (orgId && !headers.has("X-Expected-Organization-Id")) {
+    headers.set("X-Expected-Organization-Id", orgId);
+  }
+  let response = await fetch(url, { ...init, headers });
+  if (response.status === 401 && typeof window !== "undefined") {
+    await recoverAuthSession();
+    response = await fetch(url, { ...init, headers });
+  }
+  return response;
+}
+
 async function downloadCaptureArtifactBlob(
   basePath: string,
   version?: number,
@@ -468,7 +490,7 @@ async function downloadCaptureArtifactBlob(
   }
   urlParams.set("format", "url");
   try {
-    const descriptorResponse = await fetch(
+    const descriptorResponse = await fetchWithSessionRecovery(
       `/api/backend${basePath}?${urlParams.toString()}`,
       {
         credentials: "include",
@@ -501,7 +523,7 @@ async function downloadCaptureArtifactBlob(
     proxyParams.set("version", String(version));
   }
   proxyParams.set("proxy", "true");
-  const response = await fetch(
+  const response = await fetchWithSessionRecovery(
     `/api/backend${basePath}?${proxyParams.toString()}`,
     {
       credentials: "include",
@@ -515,20 +537,20 @@ async function downloadCaptureArtifactBlob(
 }
 
 export function csrfHeaders(): HeadersInit {
-  if (typeof document === "undefined") return {};
-  const parts = document.cookie.split(";").map((part) => part.trim());
-  for (const prefix of [
-    "__Host-csrf=",
-    "continuum_csrf=",
-    "csrf_token=",
-  ] as const) {
-    const cookie = parts.find((part) => part.startsWith(prefix));
-    if (cookie) {
-      const value = cookie.slice(prefix.length);
-      return { "X-CSRF-Token": decodeURIComponent(value) };
-    }
-  }
-  return {};
+  const token = getCsrfToken();
+  return token ? { "X-CSRF-Token": token } : {};
+}
+
+function computeAdaptiveKnowledgePollInterval(
+  isActive: boolean,
+  dataUpdateCount: number,
+  baseMs: number,
+  maxMs: number,
+): number | false {
+  if (!isActive) return false;
+  if (typeof document !== "undefined" && document.hidden) return false;
+  const step = Math.min(4, Math.max(0, dataUpdateCount - 1));
+  return Math.min(maxMs, baseMs * 2 ** step);
 }
 
 function projectPath(projectId: string) {
@@ -813,12 +835,16 @@ export const workNotesApi = {
     taskId: string,
     noteId: string,
     input: TaskNoteInput,
+    options?: Readonly<{ ifMatch?: string }>,
   ) {
     return apiClient<TaskNote>(
       `${projectPath(projectId)}/tasks/${encodeURIComponent(taskId)}/notes/${encodeURIComponent(noteId)}`,
       {
         method: "PATCH",
-        headers: csrfHeaders(),
+        headers: {
+          ...csrfHeaders(),
+          ...(options?.ifMatch ? { "If-Match": options.ifMatch } : {}),
+        },
         body: JSON.stringify(input),
       },
     );
@@ -865,12 +891,16 @@ export const workNotesApi = {
     projectId: string,
     documentId: string,
     input: ProjectDocumentInput,
+    options?: Readonly<{ ifMatch?: string }>,
   ) {
     return apiClient<ProjectDocument>(
       `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}`,
       {
         method: "PATCH",
-        headers: csrfHeaders(),
+        headers: {
+          ...csrfHeaders(),
+          ...(options?.ifMatch ? { "If-Match": options.ifMatch } : {}),
+        },
         body: JSON.stringify(input),
       },
     );
@@ -1126,12 +1156,20 @@ export const workNotesApi = {
       },
     );
   },
-  updateReport(projectId: string, reportId: string, input: WorkReportInput) {
+  updateReport(
+    projectId: string,
+    reportId: string,
+    input: WorkReportInput,
+    options?: Readonly<{ ifMatch?: string }>,
+  ) {
     return apiClient<WorkReport>(
       `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}`,
       {
         method: "PATCH",
-        headers: csrfHeaders(),
+        headers: {
+          ...csrfHeaders(),
+          ...(options?.ifMatch ? { "If-Match": options.ifMatch } : {}),
+        },
         body: JSON.stringify(input),
       },
     );
@@ -1272,19 +1310,23 @@ export function useTaskNotesQuery(projectId: string, taskId: string) {
       workNotesApi.listTaskNotes(projectId, taskId, signal),
     enabled: isWorkNoteId(projectId) && isWorkNoteId(taskId),
     retry: false,
-    staleTime: 0,
+    staleTime: 10_000,
+    refetchIntervalInBackground: false,
     refetchInterval: (query) => {
       const items = query.state.data?.data;
-      if (
+      const active = Boolean(
         items?.some(
           (item) =>
             (item.reviewStatus ?? "PENDING_REVIEW") === "APPROVED" &&
             isKnowledgeSyncActive(item.knowledgeSync),
-        )
-      ) {
-        return 1200;
-      }
-      return false;
+        ),
+      );
+      return computeAdaptiveKnowledgePollInterval(
+        active,
+        query.state.dataUpdateCount,
+        4_000,
+        20_000,
+      );
     },
   });
 }
@@ -1304,19 +1346,23 @@ export function useProjectTaskNotesQuery(
       workNotesApi.listProjectTaskNotes(projectId, page, signal, reviewStatus),
     enabled: isWorkNoteId(projectId),
     retry: false,
-    staleTime: 0,
+    staleTime: 10_000,
+    refetchIntervalInBackground: false,
     refetchInterval: (query) => {
       const items = query.state.data?.data;
-      if (
+      const active = Boolean(
         items?.some(
           (item) =>
             (item.reviewStatus ?? "PENDING_REVIEW") === "APPROVED" &&
             isKnowledgeSyncActive(item.knowledgeSync),
-        )
-      ) {
-        return 1200;
-      }
-      return false;
+        ),
+      );
+      return computeAdaptiveKnowledgePollInterval(
+        active,
+        query.state.dataUpdateCount,
+        4_000,
+        20_000,
+      );
     },
   });
 }
@@ -1328,7 +1374,7 @@ export function useProjectTaskNoteQuery(projectId: string, noteId: string) {
       workNotesApi.getProjectTaskNote(projectId, noteId, signal),
     enabled: isWorkNoteId(projectId) && isWorkNoteId(noteId),
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
   });
 }
 
@@ -1343,9 +1389,15 @@ export function useTaskNoteKnowledgeStatusQuery(
       workNotesApi.getTaskNoteKnowledgeStatus(projectId, noteId, signal),
     enabled: isWorkNoteId(projectId) && isWorkNoteId(noteId) && enabled,
     retry: false,
-    staleTime: 0,
+    staleTime: 5_000,
+    refetchIntervalInBackground: false,
     refetchInterval: (query) =>
-      isKnowledgeSyncActive(query.state.data) ? 650 : false,
+      computeAdaptiveKnowledgePollInterval(
+        isKnowledgeSyncActive(query.state.data),
+        query.state.dataUpdateCount,
+        2_000,
+        15_000,
+      ),
   });
 }
 
@@ -1440,19 +1492,23 @@ export function useDocumentsQuery(
       workNotesApi.listDocuments(projectId, status, page, signal),
     enabled: isWorkNoteId(projectId),
     retry: false,
-    staleTime: 0,
+    staleTime: 10_000,
+    refetchIntervalInBackground: false,
     refetchInterval: (query) => {
       const items = query.state.data?.data;
-      if (
+      const active = Boolean(
         items?.some(
           (item) =>
             item.status === "APPROVED" &&
             isKnowledgeSyncActive(item.knowledgeSync),
-        )
-      ) {
-        return 1200;
-      }
-      return false;
+        ),
+      );
+      return computeAdaptiveKnowledgePollInterval(
+        active,
+        query.state.dataUpdateCount,
+        4_000,
+        20_000,
+      );
     },
   });
 }
@@ -1464,7 +1520,7 @@ export function useDocumentQuery(projectId: string, documentId: string) {
       workNotesApi.getDocument(projectId, documentId, signal),
     enabled: isWorkNoteId(projectId) && isWorkNoteId(documentId),
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
   });
 }
 
@@ -1479,9 +1535,15 @@ export function useDocumentKnowledgeStatusQuery(
       workNotesApi.getDocumentKnowledgeStatus(projectId, documentId, signal),
     enabled: isWorkNoteId(projectId) && isWorkNoteId(documentId) && enabled,
     retry: false,
-    staleTime: 0,
+    staleTime: 5_000,
+    refetchIntervalInBackground: false,
     refetchInterval: (query) =>
-      isKnowledgeSyncActive(query.state.data) ? 650 : false,
+      computeAdaptiveKnowledgePollInterval(
+        isKnowledgeSyncActive(query.state.data),
+        query.state.dataUpdateCount,
+        2_000,
+        15_000,
+      ),
   });
 }
 
@@ -1597,7 +1659,7 @@ function putFileDirectToCloudWithProgress(
   });
 }
 
-function uploadDocumentFileLegacyProxy(
+function uploadDocumentFileLegacyProxyAttempt(
   projectId: string,
   documentId: string,
   file: File,
@@ -1607,8 +1669,8 @@ function uploadDocumentFileLegacyProxy(
     onProgress?: (percent: number, loaded: number, total: number) => void;
     signal?: AbortSignal;
   }>,
-): Promise<ProjectDocument> {
-  return new Promise<ProjectDocument>((resolve, reject) => {
+): Promise<{ status: number; document?: ProjectDocument; errorMessage?: string }> {
+  return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const path = `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}/file`;
     xhr.open("PUT", `/api/backend${path}`, true);
@@ -1617,6 +1679,10 @@ function uploadDocumentFileLegacyProxy(
     const csrf = csrfHeaders() as Record<string, string>;
     for (const [key, value] of Object.entries(csrf)) {
       xhr.setRequestHeader(key, value);
+    }
+    const orgId = getExpectedOrganizationId();
+    if (orgId) {
+      xhr.setRequestHeader("X-Expected-Organization-Id", orgId);
     }
     xhr.setRequestHeader(
       "Content-Type",
@@ -1658,7 +1724,7 @@ function uploadDocumentFileLegacyProxy(
         try {
           const parsed = JSON.parse(xhr.responseText) as ProjectDocument;
           options?.onProgress?.(100, file.size, file.size);
-          resolve(parsed);
+          resolve({ status: xhr.status, document: parsed });
         } catch {
           reject(new Error("Invalid response payload from document upload."));
         }
@@ -1674,7 +1740,7 @@ function uploadDocumentFileLegacyProxy(
         } catch {
           // ignore JSON parse error
         }
-        reject(new Error(message));
+        resolve({ status: xhr.status, errorMessage: message });
       }
     };
 
@@ -1690,6 +1756,38 @@ function uploadDocumentFileLegacyProxy(
 
     xhr.send(file);
   });
+}
+
+async function uploadDocumentFileLegacyProxy(
+  projectId: string,
+  documentId: string,
+  file: File,
+  options?: Readonly<{
+    sha256?: string;
+    autoSyncSag?: boolean;
+    onProgress?: (percent: number, loaded: number, total: number) => void;
+    signal?: AbortSignal;
+  }>,
+): Promise<ProjectDocument> {
+  let attempt = await uploadDocumentFileLegacyProxyAttempt(
+    projectId,
+    documentId,
+    file,
+    options,
+  );
+  if (attempt.status === 401 && typeof window !== "undefined") {
+    await recoverAuthSession();
+    attempt = await uploadDocumentFileLegacyProxyAttempt(
+      projectId,
+      documentId,
+      file,
+      options,
+    );
+  }
+  if (attempt.document) {
+    return attempt.document;
+  }
+  throw new Error(attempt.errorMessage ?? `Upload failed (${attempt.status})`);
 }
 
 export async function uploadDocumentFileWithProgress(
@@ -1821,19 +1919,23 @@ export function useWorkReportsQuery(
         : workNotesApi.listReports(projectId, status, page, signal),
     enabled: isWorkNoteId(projectId) && enabled,
     retry: false,
-    staleTime: 0,
+    staleTime: 10_000,
+    refetchIntervalInBackground: false,
     refetchInterval: (query) => {
       const items = query.state.data?.data;
-      if (
+      const active = Boolean(
         items?.some(
           (item) =>
             item.status === "APPROVED" &&
             isKnowledgeSyncActive(item.knowledgeSync),
-        )
-      ) {
-        return 1200;
-      }
-      return false;
+        ),
+      );
+      return computeAdaptiveKnowledgePollInterval(
+        active,
+        query.state.dataUpdateCount,
+        4_000,
+        20_000,
+      );
     },
   });
 }
@@ -1849,9 +1951,15 @@ export function useWorkReportKnowledgeStatusQuery(
       workNotesApi.getWorkReportKnowledgeStatus(projectId, reportId, signal),
     enabled: isWorkNoteId(projectId) && isWorkNoteId(reportId) && enabled,
     retry: false,
-    staleTime: 0,
+    staleTime: 5_000,
+    refetchIntervalInBackground: false,
     refetchInterval: (query) =>
-      isKnowledgeSyncActive(query.state.data) ? 650 : false,
+      computeAdaptiveKnowledgePollInterval(
+        isKnowledgeSyncActive(query.state.data),
+        query.state.dataUpdateCount,
+        2_000,
+        15_000,
+      ),
   });
 }
 
@@ -1887,7 +1995,7 @@ export function useWorkReportSettingsQuery(
         : workNotesApi.getReportSettings(projectId, signal),
     enabled: isWorkNoteId(projectId) && enabled,
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
   });
 }
 

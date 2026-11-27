@@ -15,7 +15,7 @@ import AiChatMindMapPanel, {
   AI_CHAT_MIND_MAP_DEFAULT_WIDTH,
   AI_CHAT_MIND_MAP_MAX_WIDTH,
   AI_CHAT_MIND_MAP_MIN_WIDTH,
-  AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY,
+  getMindMapWidthStorageKey,
 } from "./AiChatMindMapPanel";
 
 const { apiClientMock } = vi.hoisted(() => ({
@@ -481,7 +481,7 @@ describe("AiChatMindMapPanel — clutter-free Studio UI, citations, revalidation
     expect(dockedPanel).toHaveStyle({ width: "580px" });
     expect(document.body.style.cursor).toBe("");
     expect(
-      window.localStorage.getItem(AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY),
+      window.localStorage.getItem(getMindMapWidthStorageKey("user-1", "org-1")),
     ).toBe("580");
 
     // Remount restores persisted 580px width immediately

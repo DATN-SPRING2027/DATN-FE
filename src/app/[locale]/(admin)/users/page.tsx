@@ -1,7 +1,6 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import UserDirectory from "@/components/users/UserDirectory";
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { setRequestLocale } from "next-intl/server";
+import { redirect } from "@/i18n/navigation";
 
 import { buildAppPageMetadata } from "@/lib/page-titles.server";
 
@@ -13,12 +12,12 @@ export function generateMetadata({
   return buildAppPageMetadata(params, "users");
 }
 
-export default async function UsersPage() {
-  const t = await getTranslations("users");
-  return (
-    <div>
-      <PageBreadcrumb pageTitle={t("title")} />
-      <UserDirectory />
-    </div>
-  );
+export default async function UsersPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  redirect({ href: "/organization/members", locale });
 }

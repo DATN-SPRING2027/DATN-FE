@@ -34,9 +34,12 @@ vi.mock("@/i18n/navigation", () => ({
 vi.mock("@/icons", () => {
   const Icon = () => null;
   return {
+    AlertCircleIcon: Icon,
+    AlertIcon: Icon,
     ArrowRightIcon: Icon,
     CheckCircleIcon: Icon,
     CheckLineIcon: Icon,
+    ChevronRightIcon: Icon,
     CloseIcon: Icon,
     CloseLineIcon: Icon,
     CopyIcon: Icon,

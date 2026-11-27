@@ -1,112 +1,27 @@
 "use client";
 import { useFormatter, useTranslations } from "next-intl";
 import ComponentCard from "@/components/common/ComponentCard";
+import {
+  CheckCircleIcon,
+  TimeIcon,
+  UserIcon,
+  UsersOutlineIcon,
+} from "@/icons";
 import type { ProjectMembership } from "@/lib/queries/projects/useProjectMembers";
 
 export type LeaderRoleStatus = "ready" | "loading" | "unavailable";
 
 function FieldIcon({ kind }: { kind: "user" | "scope" | "status" | "date" }) {
   if (kind === "user") {
-    return (
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 16 16"
-        fill="none"
-        className="h-4 w-4"
-      >
-        <circle
-          cx="8"
-          cy="5.5"
-          r="2.5"
-          stroke="currentColor"
-          strokeWidth="1.4"
-        />
-        <path
-          d="M3.25 13.25c0-2.1 2.13-3.5 4.75-3.5s4.75 1.4 4.75 3.5"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
+    return <UserIcon aria-hidden="true" className="h-4 w-4" />;
   }
   if (kind === "scope") {
-    return (
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 16 16"
-        fill="none"
-        className="h-4 w-4"
-      >
-        <circle
-          cx="6.25"
-          cy="5.5"
-          r="2.25"
-          stroke="currentColor"
-          strokeWidth="1.4"
-        />
-        <path
-          d="M2.5 12.75c0-1.9 1.68-3.25 3.75-3.25S10 10.85 10 12.75"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-        />
-        <path
-          d="M10.75 4.25a2 2 0 0 1 0 3.75M13.5 12.75c0-1.45-1.05-2.65-2.5-3.05"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
+    return <UsersOutlineIcon aria-hidden="true" className="h-4 w-4" />;
   }
   if (kind === "status") {
-    return (
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 16 16"
-        fill="none"
-        className="h-4 w-4"
-      >
-        <circle
-          cx="8"
-          cy="8"
-          r="5.75"
-          stroke="currentColor"
-          strokeWidth="1.4"
-        />
-        <path
-          d="M5.5 8.25l1.75 1.75 3.5-3.75"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
+    return <CheckCircleIcon aria-hidden="true" className="h-4 w-4" />;
   }
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      fill="none"
-      className="h-4 w-4"
-    >
-      <circle
-        cx="8"
-        cy="8"
-        r="5.75"
-        stroke="currentColor"
-        strokeWidth="1.4"
-      />
-      <path
-        d="M8 5v3.25l2.25 1.25"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <TimeIcon aria-hidden="true" className="h-4 w-4" />;
 }
 
 export default function MemberDetails({

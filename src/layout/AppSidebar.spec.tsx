@@ -117,6 +117,7 @@ vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
   }),
 }));
 vi.mock("@/lib/queries/projects/useProjects", () => ({
+  useProjectQuery: () => ({ data: undefined, isPending: false, isError: false }),
   useProjectsQuery: () => projectsData,
   useInfiniteProjectsQuery: () => ({
     data: { pages: [projectsData.data] },
@@ -689,7 +690,7 @@ describe("AppSidebar navigation", () => {
 
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     const controls = [
-      ...within(nav).getAllByRole("link"),
+      ...within(nav).queryAllByRole("link"),
       ...within(nav).queryAllByRole("button"),
     ];
 

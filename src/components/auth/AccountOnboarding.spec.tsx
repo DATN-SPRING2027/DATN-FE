@@ -23,12 +23,6 @@ vi.mock("@/i18n/navigation", () => ({
   Link: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
   useRouter: () => ({ replace }),
 }));
-vi.mock("@/icons", () => ({
-  ArrowRightIcon: () => <span aria-hidden="true" />,
-  GroupIcon: () => <span aria-hidden="true" />,
-  LogOutIcon: () => <span aria-hidden="true" />,
-  PlusIcon: () => <span aria-hidden="true" />,
-}));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/lib/queries/auth/useAuth", () => ({
   useCurrentUserQuery: vi.fn(),

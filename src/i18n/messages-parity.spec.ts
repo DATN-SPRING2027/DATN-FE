@@ -6,6 +6,17 @@ import enMessages from "@/messages/en.json";
 import viMessages from "@/messages/vi.json";
 import { routing } from "./routing";
 import { languages } from "./languages";
+import {
+  ADMIN_NAMESPACES,
+  AUTH_INVITATION_NAMESPACES,
+  AUTH_NAMESPACES,
+  DOCS_NAMESPACES,
+  LANDING_NAMESPACES,
+  LEGAL_NAMESPACES,
+  PLATFORM_NAMESPACES,
+  ROOT_BASE_NAMESPACES,
+  pickMessages,
+} from "./messages-scope";
 
 type JsonNode =
   | string
@@ -210,5 +221,53 @@ describe("English (en) and Vietnamese (vi) i18n message parity", () => {
     }
 
     expect(unresolved).toEqual([]);
+  });
+
+  it("scopes client NextIntlClientProvider namespaces cleanly so root, landing, auth, and platform routes avoid full dictionary serialization", () => {
+    const fullSize = JSON.stringify(viMessages).length;
+    const rootSize = JSON.stringify(
+      pickMessages(viMessages as Record<string, unknown>, ROOT_BASE_NAMESPACES),
+    ).length;
+    const landingSize = JSON.stringify(
+      pickMessages(viMessages as Record<string, unknown>, LANDING_NAMESPACES),
+    ).length;
+    const authSize = JSON.stringify(
+      pickMessages(viMessages as Record<string, unknown>, AUTH_NAMESPACES),
+    ).length;
+    const platformSize = JSON.stringify(
+      pickMessages(viMessages as Record<string, unknown>, PLATFORM_NAMESPACES),
+    ).length;
+
+    expect(rootSize).toBeLessThan(fullSize * 0.05);
+    expect(landingSize).toBeLessThan(fullSize * 0.1);
+    expect(authSize).toBeLessThan(fullSize * 0.1);
+    expect(platformSize).toBeLessThan(fullSize * 0.2);
+
+    const allScopedNamespaces = new Set<string>([
+      ...ROOT_BASE_NAMESPACES,
+      ...LANDING_NAMESPACES,
+      ...AUTH_NAMESPACES,
+      ...AUTH_INVITATION_NAMESPACES,
+      ...DOCS_NAMESPACES,
+      ...LEGAL_NAMESPACES,
+      ...PLATFORM_NAMESPACES,
+      ...ADMIN_NAMESPACES,
+    ]);
+
+    const srcRoot = path.resolve(process.cwd(), "src");
+    const uncovered: string[] = [];
+    const clientBindRe =
+      /useTranslations\(\s*(?:\{\s*[^}]*namespace:\s*["']([^"']+)["'][^}]*\}|["']([^"']+)["'])\s*\)/g;
+    for (const file of walkSourceFiles(srcRoot)) {
+      const content = fs.readFileSync(file, "utf8");
+      let m: RegExpExecArray | null;
+      while ((m = clientBindRe.exec(content)) !== null) {
+        const topNs = (m[1] || m[2] || "").split(".")[0];
+        if (topNs && !allScopedNamespaces.has(topNs)) {
+          uncovered.push(`${path.relative(srcRoot, file)} -> ${topNs}`);
+        }
+      }
+    }
+    expect(uncovered).toEqual([]);
   });
 });

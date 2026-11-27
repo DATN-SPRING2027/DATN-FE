@@ -5,6 +5,7 @@ import messages from "@/messages/en.json";
 import * as apiClientModule from "@/lib/api-client";
 import type { AiChatCitation } from "@/lib/queries/ai-chat/ai-chat.types";
 import { workNotesApi } from "@/lib/queries/work-notes/useWorkNotes";
+import { clearAllClientSessionCaches } from "@/lib/session-cleanup";
 import AiChatEvidenceSheet, {
   resetEvidenceSheetCachesForTests,
 } from "./AiChatEvidenceSheet";
@@ -568,5 +569,151 @@ describe("AiChatEvidenceSheet — Source Reader Studio", () => {
     expect(
       screen.getByText("Following audit trail chunk from second project."),
     ).toBeTruthy();
+  });
+
+  it("hydrates work_report and work_note citations with scoped deep links, isolates cache per user/org, clears cache on session cleanup, and traps focus with ref-counted scroll lock", async () => {
+    const projectId = "507f1f77bcf86cd7994390a1";
+    const reportId = "507f1f77bcf86cd7994390b2";
+    const noteId = "507f1f77bcf86cd7994390c3";
+
+    const reportChunksSpy = vi
+      .spyOn(workNotesApi, "getWorkReportKnowledgeChunks")
+      .mockResolvedValue({
+        documentId: reportId,
+        version: 1,
+        sourceStage: "SEARCH_UNITS",
+        totalChunks: 1,
+        totalTokens: 32,
+        items: [
+          {
+            chunkId: "rep-chunk-1",
+            ordinal: 0,
+            sectionPath: "Weekly Progress",
+            blockType: "PARAGRAPH",
+            pageFrom: 1,
+            pageTo: 1,
+            content: "Sprint 8 velocity reached 42 story points cleanly.",
+            tokenCount: 32,
+          },
+        ],
+      });
+
+    const noteChunksSpy = vi
+      .spyOn(workNotesApi, "getTaskNoteKnowledgeChunks")
+      .mockResolvedValue({
+        documentId: noteId,
+        version: 1,
+        sourceStage: "SEARCH_UNITS",
+        totalChunks: 1,
+        totalTokens: 24,
+        items: [
+          {
+            chunkId: "note-chunk-1",
+            ordinal: 0,
+            sectionPath: "Implementation Note",
+            blockType: "PARAGRAPH",
+            pageFrom: 1,
+            pageTo: 1,
+            content: "Migrated refresh rotation grace window to 5 seconds.",
+            tokenCount: 24,
+          },
+        ],
+      });
+
+    const trigger = document.createElement("button");
+    trigger.textContent = "Trigger";
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const reportCitation: AiChatCitation = {
+      number: 1,
+      sourceId: "src-report",
+      projectId,
+      documentId: `continuum:work_report:${reportId}`,
+      documentName: "Weekly Report #8",
+      chunkId: "rep-chunk-1",
+      snippet: "Weekly snippet…",
+    };
+
+    const noteCitation: AiChatCitation = {
+      number: 2,
+      sourceId: "src-note",
+      projectId,
+      documentId: `continuum:work_note:${noteId}`,
+      documentName: "Auth Refresh Task Note",
+      chunkId: "note-chunk-1",
+      snippet: "Note snippet…",
+    };
+
+    const view = render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AiChatEvidenceSheet
+          evidence={{
+            kind: "document",
+            citation: reportCitation,
+            relatedCitations: [reportCitation, noteCitation],
+          }}
+          projectId="all"
+          userId="user-a"
+          organizationId="org-a"
+          onClose={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.body.dataset.scrollLockCount).toBe("1");
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Sprint 8 velocity reached 42 story points cleanly."),
+      ).toBeTruthy();
+    });
+    expect(reportChunksSpy).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("link", { name: /Open document/i }).getAttribute("href"),
+    ).toBe(`/projects/${projectId}/work-reports?reportId=${reportId}`);
+
+    // Switch to work_note tab
+    fireEvent.click(screen.getByTestId("evidence-tab-2"));
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Migrated refresh rotation grace window to 5 seconds.",
+        ),
+      ).toBeTruthy();
+    });
+    expect(noteChunksSpy).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("link", { name: /Open document/i }).getAttribute("href"),
+    ).toBe(`/projects/${projectId}/work-notes?noteId=${noteId}`);
+
+    // Different user must NOT reuse user-a's cached report chunks
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AiChatEvidenceSheet
+          evidence={{
+            kind: "document",
+            citation: reportCitation,
+          }}
+          projectId="all"
+          userId="user-b"
+          organizationId="org-a"
+          onClose={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() => {
+      expect(reportChunksSpy).toHaveBeenCalledTimes(2);
+    });
+
+    // Session cache cleanup clears caches so subsequent user-b mount refetches
+    clearAllClientSessionCaches();
+    view.unmount();
+
+    expect(document.body.style.overflow).toBe("");
+    expect(document.body.dataset.scrollLockCount).toBeUndefined();
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
   });
 });

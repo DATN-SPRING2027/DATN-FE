@@ -16,6 +16,8 @@ export const FORWARDED_REQUEST_HEADERS = [
   'x-file-name',
   'idempotency-key',
   'if-match',
+  'traceparent',
+  'tracestate',
   'x-request-id',
   'mcp-session-id',
   'mcp-protocol-version',

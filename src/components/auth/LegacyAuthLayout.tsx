@@ -4,6 +4,7 @@ import ThemeTogglerTwo from "@/components/common/ThemeTogglerTwo";
 
 import { ThemeProvider } from "@/context/ThemeContext";
 import { Link } from "@/i18n/navigation";
+import { BoltIcon, ShieldCheckIcon } from "@/icons";
 import React from "react";
 
 export default function LegacyAuthLayout({
@@ -28,12 +29,10 @@ export default function LegacyAuthLayout({
                   Enterprise Knowledge Capture &amp; Automated Verification
                 </p>
 
-                <div className="mt-8 flex flex-col gap-3 w-full text-left">
+                <div className="mt-8 flex flex-col gap-3 w-full text-start">
                   <div className="flex items-center gap-3.5 rounded-xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-xs">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-brand-400">
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
+                      <ShieldCheckIcon aria-hidden="true" className="h-5 w-5" />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-white">Cryptographic Security</p>
@@ -43,9 +42,7 @@ export default function LegacyAuthLayout({
 
                   <div className="flex items-center gap-3.5 rounded-xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-xs">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-brand-400">
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
+                      <BoltIcon aria-hidden="true" className="h-5 w-5" />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-white">Continuous Verification</p>
@@ -56,7 +53,7 @@ export default function LegacyAuthLayout({
               </div>
             </div>
           </div>
-          <div className="fixed bottom-6 right-6 z-50 hidden sm:block">
+          <div className="fixed bottom-6 end-6 z-50 hidden sm:block">
             <ThemeTogglerTwo />
           </div>
         </div>

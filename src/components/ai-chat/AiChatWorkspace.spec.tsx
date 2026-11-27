@@ -814,14 +814,16 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       name: "AI Chat conversation history",
     });
 
-    // Pin thread-1 then delete it -> localStorage pinned array is cleaned up
+    // Pin thread-1 then delete it -> user+org scoped localStorage pinned array is cleaned up
     fireEvent.click(
       within(sidebar).getByRole("button", {
         name: "Pin SAG BFF Security Review",
       }),
     );
     expect(
-      window.localStorage.getItem("continuum.aiChat.pinned.org-1.proj-core"),
+      window.localStorage.getItem(
+        "continuum.aiChat.pinned.user-1.org-1.proj-core",
+      ),
     ).toBe(JSON.stringify(["thread-1"]));
 
     deleteThreadMutateAsync.mockResolvedValueOnce(undefined);
@@ -833,7 +835,9 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       );
     });
     expect(
-      window.localStorage.getItem("continuum.aiChat.pinned.org-1.proj-core"),
+      window.localStorage.getItem(
+        "continuum.aiChat.pinned.user-1.org-1.proj-core",
+      ),
     ).toBe(JSON.stringify([]));
 
     // Start sending a question on proj-core (createThread is pending)
@@ -1640,7 +1644,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     ).toBeInTheDocument();
     expect(
       window.localStorage.getItem(
-        "continuum.aiChat.activeThread.org-1.proj-core",
+        "continuum.aiChat.activeThread.user-1.org-1.proj-core",
       ),
     ).toBe("thread-1");
 
@@ -1666,7 +1670,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     ).toBeInTheDocument();
     expect(
       window.localStorage.getItem(
-        "continuum.aiChat.activeThread.org-1.proj-core",
+        "continuum.aiChat.activeThread.user-1.org-1.proj-core",
       ),
     ).toBeNull();
   });

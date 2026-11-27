@@ -1,6 +1,8 @@
 import { act, render, screen } from "@testing-library/react";
 import { gsap } from "gsap";
+import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import messages from "@/messages/en.json";
 import OrganizationTransition from "./OrganizationTransition";
 
 function mockMatchMedia(reducedMotion: boolean) {
@@ -22,22 +24,30 @@ function mockMatchMedia(reducedMotion: boolean) {
   });
 }
 
+function renderTransition(
+  props: React.ComponentProps<typeof OrganizationTransition>,
+) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <OrganizationTransition {...props} />
+    </NextIntlClientProvider>,
+  );
+}
+
 describe("OrganizationTransition — Continuum AI Neural Signature", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders the Continuum AI logo, wordmark, and organization name while waiting for backend readiness", () => {
+  it("renders the Continuum AI logo, blue neural SVG streaks, wordmark, and organization name while waiting for backend readiness", () => {
     mockMatchMedia(false);
     const onComplete = vi.fn();
 
-    render(
-      <OrganizationTransition
-        organizationName="Continuum AI Labs"
-        ready={false}
-        onComplete={onComplete}
-      />,
-    );
+    renderTransition({
+      organizationName: "Continuum AI Labs",
+      ready: false,
+      onComplete,
+    });
 
     const status = screen.getByRole("status", {
       name: "Opening Continuum AI Labs workspace",
@@ -52,32 +62,35 @@ describe("OrganizationTransition — Continuum AI Neural Signature", () => {
 
     const logo = status.querySelector("img.cnt-logo");
     expect(logo).toHaveAttribute("src", "/continuum-ai-logo.png");
+    expect(status.querySelectorAll("svg.cnt-paths path.cnt-streak")).toHaveLength(2);
+    expect(status.querySelector(".cnt-exit-bloom")).toBeInTheDocument();
+    expect(status.querySelector(".cnt-cover")).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it("plays the ~2.7s GSAP sequence when backend finishes early and calls onComplete once", () => {
+  it("plays the ~2.7s GSAP Neural Signature sequence when backend finishes early and calls onComplete once", () => {
     mockMatchMedia(false);
     const onComplete = vi.fn();
     const baseTime = gsap.globalTimeline.time();
 
-    const { rerender } = render(
-      <OrganizationTransition
-        organizationName="North Star"
-        ready={false}
-        onComplete={onComplete}
-      />,
-    );
+    const { rerender } = renderTransition({
+      organizationName: "North Star",
+      ready: false,
+      onComplete,
+    });
 
     // Backend resolves at 0.50s while Phase 1 is still playing
     act(() => {
       gsap.updateRoot(baseTime + 0.5);
     });
     rerender(
-      <OrganizationTransition
-        organizationName="North Star"
-        ready={true}
-        onComplete={onComplete}
-      />,
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <OrganizationTransition
+          organizationName="North Star"
+          ready={true}
+          onComplete={onComplete}
+        />
+      </NextIntlClientProvider>,
     );
     expect(screen.getByText("Workspace ready")).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
@@ -101,13 +114,11 @@ describe("OrganizationTransition — Continuum AI Neural Signature", () => {
     const onComplete = vi.fn();
     const baseTime = gsap.globalTimeline.time();
 
-    const { rerender } = render(
-      <OrganizationTransition
-        organizationName="Sunrise Institute"
-        ready={false}
-        onComplete={onComplete}
-      />,
-    );
+    const { rerender } = renderTransition({
+      organizationName: "Sunrise Institute",
+      ready: false,
+      onComplete,
+    });
 
     // Advance to 4.0s while backend is still pending
     act(() => {
@@ -118,11 +129,13 @@ describe("OrganizationTransition — Continuum AI Neural Signature", () => {
 
     // Backend finishes at 4.0s -> triggers Phase 4 exit (0.48s)
     rerender(
-      <OrganizationTransition
-        organizationName="Sunrise Institute"
-        ready={true}
-        onComplete={onComplete}
-      />,
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <OrganizationTransition
+          organizationName="Sunrise Institute"
+          ready={true}
+          onComplete={onComplete}
+        />
+      </NextIntlClientProvider>,
     );
     expect(screen.getByText("Workspace ready")).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
@@ -137,21 +150,21 @@ describe("OrganizationTransition — Continuum AI Neural Signature", () => {
     mockMatchMedia(true);
     const onComplete = vi.fn();
 
-    const { rerender } = render(
-      <OrganizationTransition
-        organizationName="North Star"
-        ready={false}
-        onComplete={onComplete}
-      />,
-    );
+    const { rerender } = renderTransition({
+      organizationName: "North Star",
+      ready: false,
+      onComplete,
+    });
     expect(onComplete).not.toHaveBeenCalled();
 
     rerender(
-      <OrganizationTransition
-        organizationName="North Star"
-        ready={true}
-        onComplete={onComplete}
-      />,
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <OrganizationTransition
+          organizationName="North Star"
+          ready={true}
+          onComplete={onComplete}
+        />
+      </NextIntlClientProvider>,
     );
     expect(onComplete).toHaveBeenCalledTimes(1);
   });

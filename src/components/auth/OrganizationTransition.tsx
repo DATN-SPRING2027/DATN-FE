@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { gsap } from "gsap";
 import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import { useGSAP } from "@gsap/react";
+import { useTranslations } from "next-intl";
 import "./OrganizationTransition.css";
 
 gsap.registerPlugin(useGSAP, DrawSVGPlugin);
@@ -63,6 +64,7 @@ export default function OrganizationTransition({
   onComplete,
   logoSrc = "/continuum-ai-logo.png",
 }: OrganizationTransitionProps) {
+  const t = useTranslations("auth");
   const scopeRef = useRef<HTMLDivElement>(null);
   const completedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
@@ -296,7 +298,7 @@ export default function OrganizationTransition({
       role="status"
       aria-live="polite"
       aria-busy={!ready}
-      aria-label={`Opening ${organizationName} workspace`}
+      aria-label={t("transitionAriaLabel", { organizationName })}
     >
       <div className="cnt-grid" aria-hidden="true" />
       <div className="cnt-ambient" aria-hidden="true" />
@@ -352,7 +354,7 @@ export default function OrganizationTransition({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="cnt-logo" src={logoSrc} alt="" draggable="false" />
         </div>
-        <p className="cnt-eyebrow">YOUR KNOWLEDGE, CONNECTED</p>
+        <p className="cnt-eyebrow">{t("transitionEyebrow")}</p>
         <h1 className="cnt-wordmark" aria-label="Continuum AI">
           <span className="cnt-wordmark-first" aria-hidden="true">
             {WORDMARK_LETTERS.map((letter, index) => (
@@ -372,7 +374,9 @@ export default function OrganizationTransition({
         </h1>
         <div className="cnt-subtitle">
           <span className="cnt-mini-pulse" aria-hidden="true" />
-          <span>{ready ? "Workspace ready" : "Connecting workspace"}</span>
+          <span>
+            {ready ? t("transitionReady") : t("transitionConnecting")}
+          </span>
           <span className="cnt-subtitle-separator">/</span>
           <span className="cnt-org-name">{organizationName}</span>
         </div>

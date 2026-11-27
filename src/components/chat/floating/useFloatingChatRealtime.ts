@@ -23,6 +23,8 @@ import { useFloatingChatStore } from "@/stores/floating-chat";
 import {
   acquireSharedChatWsTicket,
   getChatWsCooldownRemainingMs,
+  getChatWsPolicyFailureCooldownMs,
+  recordChatWsConnectionFailure,
   resetChatWsCooldown,
   isChatMessagePacket,
   mergeChatMessage,
@@ -91,6 +93,10 @@ export function useFloatingChatRealtime({
 
   const socketRef = useRef<WebSocket | null>(null);
   const openWindowIdsRef = useRef<readonly string[]>(openWindowIds);
+  const refreshCurrentUserRef = useRef(refreshCurrentUser);
+  useEffect(() => {
+    refreshCurrentUserRef.current = refreshCurrentUser;
+  }, [refreshCurrentUser]);
   const remoteTypingTimers = useRef(
     new Map<string, ReturnType<typeof setTimeout>>(),
   );
@@ -161,8 +167,9 @@ export function useFloatingChatRealtime({
     };
   }, [actorId, identityKey, organizationId, queryClient]);
 
-  const updatePresence = useCallback(
-    (userId: string, isOnline: boolean) => {
+  const updatePresenceBatch = useCallback(
+    (updates: ReadonlyMap<string, boolean>) => {
+      if (updates.size === 0) return;
       queryClient.setQueriesData<
         InfiniteData<ChatPage<ChatConversation>, string | undefined>
       >({ queryKey: chatKeys.conversations(organizationId) }, (result) => {
@@ -173,9 +180,10 @@ export function useFloatingChatRealtime({
           const data = page.data.map((conversation) => {
             let convChanged = false;
             const members = conversation.members.map((member) => {
-              if (member.userId === userId && member.isOnline !== isOnline) {
+              const nextOnline = updates.get(member.userId);
+              if (nextOnline !== undefined && member.isOnline !== nextOnline) {
                 convChanged = true;
-                return { ...member, isOnline };
+                return { ...member, isOnline: nextOnline };
               }
               return member;
             });
@@ -195,9 +203,10 @@ export function useFloatingChatRealtime({
           if (!result) return result;
           let changed = false;
           const data = result.data.map((candidate) => {
-            if (candidate.id === userId && candidate.isOnline !== isOnline) {
+            const nextOnline = updates.get(candidate.id);
+            if (nextOnline !== undefined && candidate.isOnline !== nextOnline) {
               changed = true;
-              return { ...candidate, isOnline };
+              return { ...candidate, isOnline: nextOnline };
             }
             return candidate;
           });
@@ -208,6 +217,13 @@ export function useFloatingChatRealtime({
     [organizationId, queryClient],
   );
 
+  const updatePresence = useCallback(
+    (userId: string, isOnline: boolean) => {
+      updatePresenceBatch(new Map([[userId, isOnline]]));
+    },
+    [updatePresenceBatch],
+  );
+
   useEffect(() => {
     if (!organizationId || !actorId || !identityKey) return;
     if (typeof window === "undefined" || typeof WebSocket === "undefined") {
@@ -216,8 +232,9 @@ export function useFloatingChatRealtime({
 
     let stopped = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-    let delay = 1000;
+    let delay = 2_000;
     let authRecheckAttempted = false;
+    let everConnected = false;
     const timersMap = remoteTypingTimers.current;
 
     const setTypingForRoom = (
@@ -242,6 +259,10 @@ export function useFloatingChatRealtime({
 
     const scheduleReconnect = () => {
       if (stopped) return;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+      }
       useFloatingChatStore.getState().setRealtimeConnectedOwner(null);
       setRuntime((prev) => ({
         identity: identityKey,
@@ -249,13 +270,22 @@ export function useFloatingChatRealtime({
         epoch: prev.identity === identityKey ? prev.epoch : 0,
         typing: prev.identity === identityKey ? prev.typing : {},
       }));
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
       const cooldown = getChatWsCooldownRemainingMs(identityKey);
       const waitMs = Math.max(delay + Math.random() * 400, cooldown);
-      reconnectTimer = setTimeout(() => void connect(), waitMs);
-      delay = Math.min(delay * 2, 30_000);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = undefined;
+        void connect();
+      }, waitMs);
+      delay = Math.min(delay * 2, 60_000);
     };
 
     const connect = async () => {
+      if (stopped) return;
+      if (typeof document !== "undefined" && document.hidden) return;
+      let receivedConnectedFrame = false;
       try {
         const cooldown = getChatWsCooldownRemainingMs(identityKey);
         if (cooldown > 0) {
@@ -275,9 +305,9 @@ export function useFloatingChatRealtime({
             socket.close();
             return;
           }
-          resetChatWsCooldown(identityKey);
-          delay = 1000;
-          authRecheckAttempted = false;
+          // Do NOT reset delay / authRecheckAttempted until server sends the
+          // authenticated "connected" frame; otherwise immediate 1008 closes
+          // trigger an infinite 1s reconnect + ws-ticket 429 storm.
         };
 
         socket.onmessage = (event) => {
@@ -289,6 +319,12 @@ export function useFloatingChatRealtime({
             };
 
             if (packet.event === "connected") {
+              receivedConnectedFrame = true;
+              const isReconnect = everConnected;
+              everConnected = true;
+              resetChatWsCooldown(identityKey);
+              delay = 2_000;
+              authRecheckAttempted = false;
               useFloatingChatStore
                 .getState()
                 .setRealtimeConnectedOwner(identityKey);
@@ -298,9 +334,11 @@ export function useFloatingChatRealtime({
                 epoch: prev.epoch + 1,
                 typing: prev.identity === identityKey ? prev.typing : {},
               }));
-              void queryClient.invalidateQueries({
-                queryKey: ["chat", organizationId],
-              });
+              if (isReconnect) {
+                void queryClient.invalidateQueries({
+                  queryKey: chatKeys.conversations(organizationId),
+                });
+              }
             } else if (
               packet.event === "message.created" &&
               isChatMessagePacket(packet.data)
@@ -488,6 +526,7 @@ export function useFloatingChatRealtime({
               "data" in packet.data &&
               Array.isArray(packet.data.data)
             ) {
+              const snapshotMap = new Map<string, boolean>();
               for (const presence of packet.data.data) {
                 if (
                   typeof presence === "object" &&
@@ -497,9 +536,10 @@ export function useFloatingChatRealtime({
                   "isOnline" in presence &&
                   typeof presence.isOnline === "boolean"
                 ) {
-                  updatePresence(presence.userId, presence.isOnline);
+                  snapshotMap.set(presence.userId, presence.isOnline);
                 }
               }
+              updatePresenceBatch(snapshotMap);
             } else if (
               packet.event === "typing" &&
               typeof packet.data === "object" &&
@@ -583,10 +623,21 @@ export function useFloatingChatRealtime({
         socket.onclose = (event) => {
           if (socketRef.current === socket) socketRef.current = null;
           if (stopped) return;
+          if (!receivedConnectedFrame) {
+            recordChatWsConnectionFailure(
+              identityKey,
+              event.code === 1008
+                ? getChatWsPolicyFailureCooldownMs()
+                : undefined,
+            );
+          }
           if (event.code === 1008) {
-            if (authRecheckAttempted) return;
+            if (authRecheckAttempted) {
+              scheduleReconnect();
+              return;
+            }
             authRecheckAttempted = true;
-            void refreshCurrentUser().then(
+            void refreshCurrentUserRef.current().then(
               scheduleReconnect,
               scheduleReconnect,
             );
@@ -603,11 +654,13 @@ export function useFloatingChatRealtime({
           if (authRecheckAttempted) return;
           authRecheckAttempted = true;
           try {
-            await refreshCurrentUser();
+            await refreshCurrentUserRef.current();
           } catch {
             return;
           }
           if (stopped) return;
+        } else if (error instanceof ApiError && error.status === 429) {
+          delay = Math.min(Math.max(delay * 2, error.retryAfterMs ?? 15_000), 60_000);
         } else if (
           error instanceof ApiError &&
           (error.status === 403 || error.status === 404)
@@ -618,9 +671,18 @@ export function useFloatingChatRealtime({
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (stopped || document.hidden) return;
+      if (!socketRef.current && !reconnectTimer) {
+        void connect();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     void connect();
     return () => {
       stopped = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       for (const timer of timersMap.values()) clearTimeout(timer);
       timersMap.clear();
@@ -636,8 +698,8 @@ export function useFloatingChatRealtime({
     identityKey,
     organizationId,
     queryClient,
-    refreshCurrentUser,
     updatePresence,
+    updatePresenceBatch,
   ]);
 
   const openWindowKey = openWindowIds.join(",");

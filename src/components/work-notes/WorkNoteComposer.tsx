@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -229,12 +230,19 @@ export default function WorkNoteComposer({
     canAutoApprove && autoApprove && trimmedBodyLen >= 30;
   const showShortContentNudge =
     !source && canAutoApprove && autoApprove && isShortContent;
+  const deferredFieldTitle = useDeferredValue(fieldTitle);
+  const deferredFieldBody = useDeferredValue(fieldBody);
+  const deferredInstruction = useDeferredValue(instruction);
   const preSendSecurity = useMemo(
     () =>
       hasFields
-        ? detectPreSendSensitiveData([fieldTitle, fieldBody, instruction])
+        ? detectPreSendSensitiveData([
+            deferredFieldTitle,
+            deferredFieldBody,
+            deferredInstruction,
+          ])
         : null,
-    [hasFields, fieldTitle, fieldBody, instruction],
+    [hasFields, deferredFieldTitle, deferredFieldBody, deferredInstruction],
   );
 
   const defaultAiWidthPx = variant === "inline" ? 390 : 410;

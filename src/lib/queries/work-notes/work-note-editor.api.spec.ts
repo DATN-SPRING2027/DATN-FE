@@ -1,7 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { editorAgentApi } from "./work-note-agent.api";
-vi.mock("@/lib/api-client", () => ({ apiClient: vi.fn() }));
+vi.mock("@/lib/api-client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api-client")>()),
+  apiClient: vi.fn(),
+}));
 const response = {
   id: "draft",
   workflow: "PROJECT_DOCUMENT",

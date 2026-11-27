@@ -13,6 +13,7 @@ import { useHydratedReducedMotion } from "@/components/ui/button/buttonMotion";
 import { useOrganizationOptionsQuery } from "@/lib/queries/auth/useAccountOnboarding";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
+  useProjectQuery,
   useProjectsQuery,
   type Project,
 } from "@/lib/queries/projects/useProjects";
@@ -177,6 +178,9 @@ function resolveProjectSwitchDestination(
       subSection === "members" ||
       subSection === "work" ||
       subSection === "work-notes" ||
+      subSection === "documents" ||
+      subSection === "work-reports" ||
+      subSection === "teams" ||
       subSection === "handover" ||
       subSection === "settings")
   ) {
@@ -332,7 +336,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     (state) => state.setSelectedProjectForOrg,
   );
 
-  const activeProjectFromPath = useMemo(
+  const activeProjectFromPage = useMemo(
     () =>
       activeProjectIdFromPath
         ? (sidebarProjects.find(
@@ -341,6 +345,31 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
         : null,
     [activeProjectIdFromPath, sidebarProjects],
   );
+  const needsDirectActiveProject = Boolean(
+    organizationId &&
+      activeProjectIdFromPath &&
+      projectsQuery.isSuccess &&
+      !activeProjectFromPage,
+  );
+  const directActiveProjectQuery = useProjectQuery(
+    organizationId ?? "",
+    needsDirectActiveProject ? (activeProjectIdFromPath ?? "") : "",
+  );
+  const directActiveProject = isAccessOrResourceUnavailableError(
+    directActiveProjectQuery.error,
+  )
+    ? null
+    : (directActiveProjectQuery.data ?? null);
+  const activeProjectFromPath = activeProjectFromPage ?? directActiveProject;
+  const switcherProjects = useMemo(() => {
+    if (
+      !directActiveProject ||
+      sidebarProjects.some((project) => project.id === directActiveProject.id)
+    ) {
+      return sidebarProjects;
+    }
+    return [directActiveProject, ...sidebarProjects];
+  }, [directActiveProject, sidebarProjects]);
 
   useEffect(() => {
     if (organizationId && activeProjectFromPath) {
@@ -349,21 +378,21 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
   }, [activeProjectFromPath, organizationId, setSelectedProjectForOrg]);
 
   const activeProject = useMemo<Project | null>(() => {
-    if (!organizationId || sidebarProjects.length === 0) return null;
+    if (!organizationId || switcherProjects.length === 0) return null;
     if (activeProjectFromPath) return activeProjectFromPath;
     const rememberedId = selectedProjectByOrg[organizationId];
     if (rememberedId) {
-      const remembered = sidebarProjects.find(
+      const remembered = switcherProjects.find(
         (project) => project.id === rememberedId,
       );
       if (remembered) return remembered;
     }
-    return sidebarProjects[0] ?? null;
+    return switcherProjects[0] ?? null;
   }, [
     activeProjectFromPath,
     organizationId,
     selectedProjectByOrg,
-    sidebarProjects,
+    switcherProjects,
   ]);
 
   const [syncedProjectTab, setSyncedProjectTab] = useState<{
@@ -1093,7 +1122,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
         <SidebarProjectSwitcher
           isExpandedView={isExpandedView}
           organizationName={organizationName}
-          projects={sidebarProjects}
+          projects={switcherProjects}
           activeProject={activeProject}
           isLoading={projectsQuery.isLoading}
           isError={projectsQuery.isError}
@@ -1219,15 +1248,29 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
                     </li>
                   );
 
+                  const canPotentiallyManageProject = (() => {
+                    if (!visibleUser || activeProject.status !== "ACTIVE") {
+                      return false;
+                    }
+                    const roles =
+                      "roles" in visibleUser && Array.isArray(visibleUser.roles)
+                        ? visibleUser.roles
+                        : [];
+                    if (roles.includes("ADMIN")) return true;
+                    if (Array.isArray(activeProject.leaders)) {
+                      return activeProject.leaders.some(
+                        (leader) => leader.userId === visibleUser.id,
+                      );
+                    }
+                    return true;
+                  })();
+
                   return subItem.key === "settings" ? (
                     <ProjectSettingsNavigation
                       key={subItem.key}
                       organizationId={organizationId ?? ""}
                       projectId={activeProject.id}
-                      active={
-                        activeProject.status === "ACTIVE" &&
-                        Boolean(visibleUser)
-                      }
+                      active={canPotentiallyManageProject}
                     >
                       {navigationItem}
                     </ProjectSettingsNavigation>
@@ -1257,23 +1300,25 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
                 {visiblePrimaryItems.map(renderItem)}
               </ul>
             </section>
-            <section
-              aria-labelledby="sidebar-administration"
-              className="border-t border-gray-200/80 pt-2.5 dark:border-gray-800/80"
-            >
-              <h2
-                id="sidebar-administration"
-                className={cn(
-                  "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
-                  !isExpandedView && "sr-only",
-                )}
+            {visibleAdministrationItems.length > 0 && (
+              <section
+                aria-labelledby="sidebar-administration"
+                className="border-t border-gray-200/80 pt-2.5 dark:border-gray-800/80"
               >
-                {t("groups.administration")}
-              </h2>
-              <ul className="flex flex-col gap-0.5">
-                {visibleAdministrationItems.map(renderItem)}
-              </ul>
-            </section>
+                <h2
+                  id="sidebar-administration"
+                  className={cn(
+                    "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
+                    !isExpandedView && "sr-only",
+                  )}
+                >
+                  {t("groups.administration")}
+                </h2>
+                <ul className="flex flex-col gap-0.5">
+                  {visibleAdministrationItems.map(renderItem)}
+                </ul>
+              </section>
+            )}
           </nav>
         </div>
       </LayoutGroup>

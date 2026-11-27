@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { tr } from "@/i18n/tr";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -85,11 +85,24 @@ export default function HandoverListWorkspace({
   const leadersQuery = useProjectLeadersQuery(organizationId, projectId);
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<HandoverStatus | "ALL">(
     "ALL",
   );
   const [departingFilter, setDepartingFilter] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  useEffect(() => {
+    const trimmed = search.trim();
+    if (!trimmed) {
+      setDebouncedSearch("");
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedSearch(trimmed);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Safe Coordinator Recovery Modal (for Organization Managers or Leaders)
   const [isCoordModalOpen, setIsCoordModalOpen] = useState(false);
@@ -108,6 +121,9 @@ export default function HandoverListWorkspace({
   const [cursors, setCursors] = useState<string[]>([]);
   const handoversQuery = useHandoversQuery(projectId, {
     ...(participantRole ? { participantRole } : {}),
+    ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+    ...(departingFilter ? { departingUserId: departingFilter } : {}),
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(cursors.length ? { cursor: cursors.at(-1) } : {}),
   });
 
@@ -241,6 +257,9 @@ export default function HandoverListWorkspace({
   }, [allItems, statusFilter, departingFilter, search]);
 
   const metrics = useMemo(() => {
+    if (handoversQuery.data?.summary) {
+      return handoversQuery.data.summary;
+    }
     let open = 0;
     let overdue = 0;
     let completed = 0;
@@ -261,7 +280,7 @@ export default function HandoverListWorkspace({
       completed,
       unassignedSuccessor,
     };
-  }, [allItems]);
+  }, [allItems, handoversQuery.data?.summary]);
 
   const hasActiveFilters =
     search.trim().length > 0 ||
@@ -305,13 +324,11 @@ export default function HandoverListWorkspace({
     const trimmedId = coordHandoverId.trim();
     const parsedVersion = Number(coordVersion);
     if (!trimmedId || !Number.isInteger(parsedVersion) || parsedVersion < 1) {
-      setCoordError("Provide a valid Handover ID and integer version (>= 1).");
+      setCoordError(t("detail.coordinatorInvalidIdVersion"));
       return;
     }
     if (!coordLeaderId.trim() || !coordReason.trim()) {
-      setCoordError(
-        "Select a Project Leader and enter an appointment reason.",
-      );
+      setCoordError(t("detail.coordinatorMissingFields"));
       return;
     }
     const coordFp = canonicalizeCommandIntent({
@@ -353,7 +370,7 @@ export default function HandoverListWorkspace({
       void handoversQuery.refetch();
     } catch (err) {
       setCoordError(
-        extractHandoverErrorMessage(err, "Coordinator update failed."),
+        extractHandoverErrorMessage(err, t("detail.coordinatorUpdateFailed")),
       );
     } finally {
       setCoordPending(false);
@@ -677,7 +694,10 @@ export default function HandoverListWorkspace({
                 type="search"
                 aria-label={t("filters.searchLabel")}
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCursors([]);
+                }}
                 placeholder={t("filters.searchPlaceholder")}
                 className="w-full rounded-xl border border-gray-300 bg-gray-50/50 py-2 ps-10 pe-3.5 text-sm text-gray-900 focus:border-brand-500 focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               />
@@ -687,9 +707,10 @@ export default function HandoverListWorkspace({
               <select
                 aria-label={t("filters.statusLabel")}
                 value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(e.target.value as HandoverStatus | "ALL")
-                }
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as HandoverStatus | "ALL");
+                  setCursors([]);
+                }}
                 className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
               >
                 <option value="ALL">{t("filters.statusAll")}</option>
@@ -706,7 +727,10 @@ export default function HandoverListWorkspace({
                 <select
                   aria-label={t("filters.departingLabel")}
                   value={departingFilter}
-                  onChange={(e) => setDepartingFilter(e.target.value)}
+                  onChange={(e) => {
+                    setDepartingFilter(e.target.value);
+                    setCursors([]);
+                  }}
                   className="max-w-[220px] rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                 >
                   <option value="">{t("filters.allMembers")}</option>
@@ -723,8 +747,10 @@ export default function HandoverListWorkspace({
                   type="button"
                   onClick={() => {
                     setSearch("");
+                    setDebouncedSearch("");
                     setStatusFilter("ALL");
                     setDepartingFilter("");
+                    setCursors([]);
                   }}
                   className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                 >

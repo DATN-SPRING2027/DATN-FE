@@ -16,11 +16,11 @@ export default function LandingHero() {
     <section className="relative overflow-hidden pt-6 pb-14 md:pt-10 md:pb-20">
       {/* Royal Blue & Indigo Atmospheric Ambient Lighting */}
       <div
-        className="pointer-events-none absolute -top-32 right-10 -z-10 h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-3xl opacity-80"
+        className="pointer-events-none absolute -top-32 end-10 -z-10 h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-3xl opacity-80"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute top-1/2 left-8 -z-10 h-[400px] w-[400px] rounded-full bg-indigo-500/8 blur-3xl"
+        className="pointer-events-none absolute top-1/2 start-8 -z-10 h-[400px] w-[400px] rounded-full bg-indigo-500/8 blur-3xl"
         aria-hidden="true"
       />
 

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -150,10 +150,19 @@ function ScopedTeams({
   );
   // A denied read dismisses management, rather than merely hiding it until
   // the next successful refresh. Transient failures keep canManage stable.
-  if (!canManage && dialogAction && dialogAction.kind !== "view") {
-    setDialogAction(null);
-    modal.closeModal();
-  }
+  const shouldDismissPrivilegedDialog =
+    !canManage && Boolean(dialogAction && dialogAction.kind !== "view");
+  const effectiveDialogAction = shouldDismissPrivilegedDialog
+    ? null
+    : dialogAction;
+  useEffect(() => {
+    if (!shouldDismissPrivilegedDialog) return;
+    const timer = window.setTimeout(() => {
+      setDialogAction(null);
+      modal.closeModal();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [shouldDismissPrivilegedDialog, modal]);
   const base = `/projects/${encodeURIComponent(scope.projectId)}/teams`;
   const managementEnabled = canManage && !accessChecking;
   function openDialog(action: TeamDialogAction) {
@@ -222,8 +231,8 @@ function ScopedTeams({
         <>
           <TeamDirectory directory={directory} canManage={managementEnabled} onAction={openDialog} />
           <TeamManagementDialog
-            isOpen={modal.isOpen && (dialogAction?.kind === "view" || canManage)}
-            action={dialogAction}
+            isOpen={modal.isOpen && (effectiveDialogAction?.kind === "view" || canManage)}
+            action={effectiveDialogAction}
             scope={scope}
             actor={actor}
             canManage={managementEnabled}

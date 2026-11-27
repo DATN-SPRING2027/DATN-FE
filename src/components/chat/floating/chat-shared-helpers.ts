@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api-client";
+import { registerSessionCacheCleanup } from "@/lib/session-cleanup";
 import {
   chatApi,
   type ChatConversation,
@@ -12,9 +13,17 @@ export type FloatingConnectionState =
   | "connected"
   | "reconnecting";
 
-const WS_RATE_LIMIT_COOLDOWN_MS = 15_000;
+const WS_RATE_LIMIT_COOLDOWN_MS = 30_000;
+const WS_POLICY_FAILURE_COOLDOWN_MS = 15_000;
+const WS_FAILURE_BACKOFF_STEPS_MS = [5_000, 15_000, 30_000, 60_000] as const;
+const WS_FAILURE_MAX_COOLDOWN_MS = 300_000;
 
 const wsCooldownUntilByIdentity = new Map<string, number>();
+const wsFailureCountByIdentity = new Map<string, number>();
+const wsTicketInFlightByIdentity = new Map<
+  string,
+  Promise<{ ticket: string; expiresInSeconds: number }>
+>();
 
 export function resolveChatRealtimeWsUrl(): string {
   const explicitWsUrl = process.env.NEXT_PUBLIC_CHAT_WS_URL?.trim();
@@ -47,26 +56,66 @@ export function getChatWsCooldownRemainingMs(identity: string): number {
   return Math.max(0, until - Date.now());
 }
 
+export function recordChatWsConnectionFailure(
+  identity: string,
+  minCooldownMs?: number,
+): number {
+  const nextCount = (wsFailureCountByIdentity.get(identity) ?? 0) + 1;
+  wsFailureCountByIdentity.set(identity, nextCount);
+  const stepIndex = Math.min(nextCount - 1, WS_FAILURE_BACKOFF_STEPS_MS.length - 1);
+  const stepped = WS_FAILURE_BACKOFF_STEPS_MS[stepIndex] ?? 60_000;
+  const waitMs = Math.min(
+    WS_FAILURE_MAX_COOLDOWN_MS,
+    Math.max(stepped, minCooldownMs ?? 0),
+  );
+  wsCooldownUntilByIdentity.set(identity, Date.now() + waitMs);
+  return waitMs;
+}
+
+export function getChatWsPolicyFailureCooldownMs(): number {
+  return WS_POLICY_FAILURE_COOLDOWN_MS;
+}
+
 export function resetChatWsCooldown(identity?: string): void {
   if (identity) {
     wsCooldownUntilByIdentity.delete(identity);
+    wsFailureCountByIdentity.delete(identity);
   } else {
     wsCooldownUntilByIdentity.clear();
+    wsFailureCountByIdentity.clear();
   }
 }
 
+registerSessionCacheCleanup(() => {
+  resetChatWsCooldown();
+});
+
 export function acquireSharedChatWsTicket(identity: string) {
-  return chatApi
+  const existing = wsTicketInFlightByIdentity.get(identity);
+  if (existing) return existing;
+
+  const request = chatApi
     .wsTicket()
     .catch((error: unknown) => {
       if (error instanceof ApiError && error.status === 429) {
-        wsCooldownUntilByIdentity.set(
-          identity,
-          Date.now() + WS_RATE_LIMIT_COOLDOWN_MS,
+        const rateLimitCooldown = Math.max(
+          WS_RATE_LIMIT_COOLDOWN_MS,
+          error.retryAfterMs ?? 0,
         );
+        recordChatWsConnectionFailure(identity, rateLimitCooldown);
+      } else if (!(error instanceof ApiError && error.status === 401)) {
+        recordChatWsConnectionFailure(identity);
       }
       throw error;
+    })
+    .finally(() => {
+      if (wsTicketInFlightByIdentity.get(identity) === request) {
+        wsTicketInFlightByIdentity.delete(identity);
+      }
     });
+
+  wsTicketInFlightByIdentity.set(identity, request);
+  return request;
 }
 
 export function getConversationPeer(

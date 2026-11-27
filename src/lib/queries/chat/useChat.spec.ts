@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { chatApi, type ChatMessage } from "./useChat";
+import { ApiError } from "@/lib/api-client";
+import {
+  acquireSharedChatWsTicket,
+  getChatWsCooldownRemainingMs,
+  getChatWsPolicyFailureCooldownMs,
+  recordChatWsConnectionFailure,
+  resetChatWsCooldown,
+} from "@/components/chat/floating/chat-shared-helpers";
+import {
+  chatApi,
+  normalizeChatAttachmentUrl,
+  type ChatMessage,
+} from "./useChat";
 
 const message = (id: string, content = id) =>
   ({
@@ -56,5 +68,41 @@ describe("chat history recovery", () => {
     await expect(chatApi.syncMessages("conversation")).rejects.toThrow(
       "offline",
     );
+  });
+
+  it("rewrites relative /api/v1/ attachment URLs to /api/backend/ while leaving external URLs intact", () => {
+    expect(
+      normalizeChatAttachmentUrl(
+        "/api/v1/chat/conversations/c1/attachments/a1/content",
+      ),
+    ).toBe("/api/backend/chat/conversations/c1/attachments/a1/content");
+    expect(normalizeChatAttachmentUrl("https://cdn.example.com/file.png")).toBe(
+      "https://cdn.example.com/file.png",
+    );
+    expect(normalizeChatAttachmentUrl("blob:mock-url")).toBe("blob:mock-url");
+  });
+
+  it("applies stepped WS backoff (5s->15s->30s->60s) and honors 429 Retry-After cooldown", async () => {
+    resetChatWsCooldown();
+    expect(recordChatWsConnectionFailure("u1:o1")).toBe(5_000);
+    expect(recordChatWsConnectionFailure("u1:o1")).toBe(15_000);
+    expect(recordChatWsConnectionFailure("u1:o1")).toBe(30_000);
+    expect(recordChatWsConnectionFailure("u1:o1")).toBe(60_000);
+    expect(recordChatWsConnectionFailure("u1:o1")).toBe(60_000);
+
+    resetChatWsCooldown("u1:o1");
+    expect(
+      recordChatWsConnectionFailure("u1:o1", getChatWsPolicyFailureCooldownMs()),
+    ).toBe(15_000);
+
+    resetChatWsCooldown("u1:o1");
+    vi.spyOn(chatApi, "wsTicket").mockRejectedValueOnce(
+      new ApiError(429, "RATE_LIMITED", "Too many requests", undefined, false, undefined, 45_000),
+    );
+    await expect(acquireSharedChatWsTicket("u1:o1")).rejects.toMatchObject({
+      status: 429,
+    });
+    expect(getChatWsCooldownRemainingMs("u1:o1")).toBeGreaterThanOrEqual(40_000);
+    resetChatWsCooldown();
   });
 });

@@ -1,9 +1,15 @@
 "use client";
 
-import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useRef,
+  useSyncExternalStore,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { ArrowRightIcon } from "@/icons";
+import { hasClientSessionHint } from "@/lib/api-client";
 import { useSignInSessionQuery } from "@/lib/queries/auth/useSharedSignIn";
 import {
   ButtonRippleLayer,
@@ -12,11 +18,14 @@ import {
 } from "@/components/ui/button/buttonMotion";
 import styles from "./landing.module.css";
 
+const subscribeNoop = () => () => undefined;
+
 interface WorkspaceLinkProps {
   subtle?: boolean;
   compact?: boolean;
   guestLabel?: string;
   hideIcon?: boolean;
+  hasSessionCookie?: boolean;
 }
 
 export default function WorkspaceLink({
@@ -24,9 +33,16 @@ export default function WorkspaceLink({
   compact = false,
   guestLabel,
   hideIcon = false,
+  hasSessionCookie = false,
 }: WorkspaceLinkProps) {
   const t = useTranslations("landingRylo");
-  const session = useSignInSessionQuery();
+  const hasSessionHint = useSyncExternalStore(
+    subscribeNoop,
+    hasClientSessionHint,
+    () => hasSessionCookie,
+  );
+  const shouldProbeSession = hasSessionCookie || hasSessionHint;
+  const session = useSignInSessionQuery({ enabled: shouldProbeSession });
   const shouldReduceMotion = useHydratedReducedMotion();
   const rippleRef = useRef<ButtonRippleHandle>(null);
 
@@ -38,7 +54,10 @@ export default function WorkspaceLink({
     [shouldReduceMotion, subtle],
   );
 
-  if (session.isPending) {
+  if (
+    shouldProbeSession &&
+    (session.isLoading || (session.isPending && session.fetchStatus !== "idle"))
+  ) {
     return (
       <span
         className={styles.sessionLoading}

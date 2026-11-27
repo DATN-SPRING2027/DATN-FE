@@ -111,7 +111,7 @@ describe("handover.service", () => {
     expect(mockedApiClient).toHaveBeenCalledTimes(1);
     const [calledUrl] = mockedApiClient.mock.calls[0]!;
     expect(calledUrl).toBe(
-      "/handover/projects/proj-1/handovers?cursor=cursor-1&limit=25",
+      "/handover/projects/proj-1/handovers?cursor=cursor-1&limit=25&status=OPEN&departingUserId=user-a&search=auth",
     );
     expect(result.nextCursor).toBe("cursor-next-2");
     expect(result.data).toHaveLength(1);

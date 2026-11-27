@@ -131,16 +131,25 @@ export const BROWSER_EXTENSION_HYDRATION_GUARD_SCRIPT = `(function(){
       return false;
     }
   }, true);
+  if (window.__continuumExtHydrationGuardInstalled) return;
+  window.__continuumExtHydrationGuardInstalled = true;
+  var origSetAttribute = null;
+  var obs = null;
   try {
-    var origSetAttribute = Element.prototype.setAttribute;
+    origSetAttribute = Element.prototype.setAttribute;
     Element.prototype.setAttribute = function(name, value) {
       if (isExtAttr(name)) return;
       return origSetAttribute.call(this, name, value);
     };
   } catch (_) {}
   cleanTree(document.documentElement);
+  document.addEventListener("DOMContentLoaded", function onDomReady() {
+    if (window.__continuumExtHydrationGuardActive) {
+      cleanTree(document.documentElement);
+    }
+  }, { once: true });
   if (typeof MutationObserver !== "undefined" && document.documentElement) {
-    var obs = new MutationObserver(function(mutations) {
+    obs = new MutationObserver(function(mutations) {
       for (var i = 0; i < mutations.length; i++) {
         var m = mutations[i];
         if (m.type === "attributes" && isExtAttr(m.attributeName)) {
@@ -154,16 +163,43 @@ export const BROWSER_EXTENSION_HYDRATION_GUARD_SCRIPT = `(function(){
     });
     obs.observe(document.documentElement, {
       attributes: true,
+      attributeFilter: ["bis_skin_checked", "bis_register", "bis_id", "bis_size", "data-bis-config"],
       childList: true,
       subtree: true
     });
   }
+  window.__continuumExtHydrationGuardTeardown = function() {
+    if (obs) {
+      obs.disconnect();
+      obs = null;
+    }
+    if (origSetAttribute) {
+      try {
+        Element.prototype.setAttribute = origSetAttribute;
+      } catch (_) {}
+      origSetAttribute = null;
+    }
+    window.__continuumExtHydrationGuardActive = false;
+  };
+  window.__continuumExtHydrationGuardActive = true;
 })();`;
 
 declare global {
   interface Window {
     __continuumExtHydrationGuardInstalled?: boolean;
+    __continuumExtHydrationGuardActive?: boolean;
+    __continuumExtHydrationGuardTeardown?: () => void;
+    __continuumExtErrorHandlersInstalled?: boolean;
   }
+}
+
+export function teardownBrowserExtensionHydrationGuard(): void {
+  if (typeof window === "undefined") return;
+  if (typeof window.__continuumExtHydrationGuardTeardown === "function") {
+    window.__continuumExtHydrationGuardTeardown();
+    window.__continuumExtHydrationGuardTeardown = undefined;
+  }
+  window.__continuumExtHydrationGuardActive = false;
 }
 
 export function installBrowserExtensionHydrationGuard(): void {
@@ -172,53 +208,58 @@ export function installBrowserExtensionHydrationGuard(): void {
   if (window.__continuumExtHydrationGuardInstalled) return;
   window.__continuumExtHydrationGuardInstalled = true;
 
-  window.addEventListener(
-    "error",
-    (event: ErrorEvent) => {
-      if (
-        isBrowserExtensionError({
-          filename: event.filename,
-          stack: event.error instanceof Error ? event.error.stack : undefined,
-          message: event.message,
-        })
-      ) {
-        event.stopImmediatePropagation();
-        event.preventDefault();
-      }
-    },
-    true,
-  );
+  if (!window.__continuumExtErrorHandlersInstalled) {
+    window.__continuumExtErrorHandlersInstalled = true;
+    window.addEventListener(
+      "error",
+      (event: ErrorEvent) => {
+        if (
+          isBrowserExtensionError({
+            filename: event.filename,
+            stack: event.error instanceof Error ? event.error.stack : undefined,
+            message: event.message,
+          })
+        ) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+        }
+      },
+      true,
+    );
 
-  window.addEventListener(
-    "unhandledrejection",
-    (event: PromiseRejectionEvent) => {
-      const reason = event.reason as { stack?: string; message?: string } | undefined;
-      if (
-        isBrowserExtensionError({
-          filename: "",
-          stack: reason?.stack,
-          message: reason?.message ?? String(reason ?? ""),
-        })
-      ) {
-        event.stopImmediatePropagation();
-        event.preventDefault();
-      }
-    },
-    true,
-  );
-
-  try {
-    const origSetAttribute = Element.prototype.setAttribute;
-    Element.prototype.setAttribute = function (name: string, value: string) {
-      if (isExtensionInjectedAttribute(name)) return;
-      origSetAttribute.call(this, name, value);
-    };
-  } catch {
-    // Ignore read-only prototype environments
+    window.addEventListener(
+      "unhandledrejection",
+      (event: PromiseRejectionEvent) => {
+        const reason = event.reason as { stack?: string; message?: string } | undefined;
+        if (
+          isBrowserExtensionError({
+            filename: "",
+            stack: reason?.stack,
+            message: reason?.message ?? String(reason ?? ""),
+          })
+        ) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+        }
+      },
+      true,
+    );
   }
 
+  let origSetAttribute: typeof Element.prototype.setAttribute | null = null;
+  try {
+    origSetAttribute = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function (name: string, value: string) {
+      if (isExtensionInjectedAttribute(name)) return;
+      origSetAttribute!.call(this, name, value);
+    };
+  } catch {
+    origSetAttribute = null;
+  }
+
+  let observer: MutationObserver | null = null;
   if (typeof MutationObserver !== "undefined" && document.documentElement) {
-    const observer = new MutationObserver((mutations) => {
+    observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         if (
           mutation.type === "attributes" &&
@@ -238,8 +279,26 @@ export function installBrowserExtensionHydrationGuard(): void {
     });
     observer.observe(document.documentElement, {
       attributes: true,
+      attributeFilter: [...EXTENSION_ATTRIBUTE_NAMES],
       childList: true,
       subtree: true,
     });
   }
+
+  window.__continuumExtHydrationGuardActive = true;
+  window.__continuumExtHydrationGuardTeardown = () => {
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+    if (origSetAttribute) {
+      try {
+        Element.prototype.setAttribute = origSetAttribute;
+      } catch {
+        // Ignore read-only prototype environments
+      }
+      origSetAttribute = null;
+    }
+    window.__continuumExtHydrationGuardActive = false;
+  };
 }

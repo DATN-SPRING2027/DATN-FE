@@ -29,29 +29,6 @@ vi.mock("@/i18n/navigation", () => ({
   usePathname: () => mockPathname,
   useRouter: () => ({ replace: routerReplaceMock }),
 }));
-vi.mock("@/icons", () => {
-  const Icon = () => null;
-  return {
-    BookOpenIcon: Icon,
-    CalenderIcon: Icon,
-    CheckCircleIcon: Icon,
-    ChevronDownIcon: Icon,
-    ChevronLeftIcon: Icon,
-    CloseLineIcon: Icon,
-    DocsIcon: Icon,
-    EyeIcon: Icon,
-    FilterIcon: Icon,
-    GridIcon: Icon,
-    ListIcon: Icon,
-    PieChartIcon: Icon,
-    PlusIcon: Icon,
-    SearchIcon: Icon,
-    SettingsIcon: Icon,
-    TableIcon: Icon,
-    TaskIcon: Icon,
-    TimeIcon: Icon,
-  };
-});
 
 const api = vi.mocked(apiClient);
 

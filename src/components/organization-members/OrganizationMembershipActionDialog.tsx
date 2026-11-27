@@ -9,6 +9,12 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import {
+  AlertCircleFilledIcon,
+  CheckLineIcon,
+  ExternalLinkIcon,
+  TimeIcon,
+} from "@/icons";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Alert from "@/components/ui/alert/Alert";
@@ -368,20 +374,10 @@ export default function OrganizationMembershipActionDialog({
                   <span className="truncate text-sm font-semibold text-gray-900 dark:text-white/90">
                     {invitation.invitedEmail}
                   </span>
-                  <svg
+                  <ExternalLinkIcon
                     aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    className="size-3.5 shrink-0 text-gray-400"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.5 3.5h3v3M12.25 3.75 7.5 8.5M6.5 4.5H4.75A1.25 1.25 0 0 0 3.5 5.75v5.5c0 .69.56 1.25 1.25 1.25h5.5c.69 0 1.25-.56 1.25-1.25V9.5"
-                    />
-                  </svg>
+                    className="size-3.5 shrink-0 text-gray-400 rtl:-scale-x-100"
+                  />
                 </div>
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   <span>{t("resendInvitedOn", { date: invitedDate })}</span>
@@ -396,18 +392,10 @@ export default function OrganizationMembershipActionDialog({
             </div>
 
             <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-warning-200 bg-warning-50 px-2.5 py-1 text-xs font-medium text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
-              <svg
+              <TimeIcon
                 aria-hidden="true"
-                viewBox="0 0 16 16"
-                fill="currentColor"
                 className="size-3.5 text-warning-500"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0V8c0 .2.08.39.22.53l2 2a.75.75 0 1 0 1.06-1.06L8.75 7.69V4.75Z"
-                  clipRule="evenodd"
-                />
-              </svg>
+              />
               <span>{t(invitation.status)}</span>
             </span>
           </div>
@@ -455,17 +443,7 @@ export default function OrganizationMembershipActionDialog({
                   aria-hidden="true"
                   className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-success-500 text-white"
                 >
-                  <svg
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="size-4"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42 0l-3.75-3.775a1 1 0 1 1 1.42-1.408l3.04 3.06 6.54-6.585a1 1 0 0 1 1.414-.006Z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <CheckLineIcon aria-hidden="true" className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-success-800 dark:text-success-300">
@@ -508,17 +486,10 @@ export default function OrganizationMembershipActionDialog({
                     aria-hidden="true"
                     className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-error-500 text-white"
                   >
-                    <svg
-                      viewBox="0 0 16 16"
-                      fill="currentColor"
+                    <AlertCircleFilledIcon
+                      aria-hidden="true"
                       className="size-3.5"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14ZM8 4.5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4.5Zm0 7.25a.875.875 0 1 0 0-1.75.875.875 0 0 0 0 1.75Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-error-700 dark:text-error-300">

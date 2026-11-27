@@ -5,7 +5,6 @@ import { ApiError } from "@/lib/api-client";
 import { useUpdateUserMutation, useUserQuery } from "@/lib/queries/users/useUsers";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("@/icons", () => ({ ChevronDownIcon: () => null, CloseIcon: () => null }));
 vi.mock("@/i18n/navigation", () => ({
   Link: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));

@@ -56,6 +56,13 @@ export function handleSessionError(
         !matchesQueryKey(query.queryKey, fallbackIdentityKey) &&
         !(requestKey && matchesQueryKey(query.queryKey, requestKey)),
     });
+    if (!activeIdentityKey) {
+      setTimeout(() => {
+        void client.resetQueries({ queryKey: authKeys.currentUser() }).catch(() => {
+          // The identity query carries the terminal error for the layout guard.
+        });
+      }, 0);
+    }
     return;
   }
   if (error.status !== 401) return;
@@ -65,9 +72,8 @@ export function handleSessionError(
       predicate: (query) => !matchesQueryKey(query.queryKey, activeIdentityKey),
     });
   } else {
-    // Hide the cached identity now, then let the layout's active /auth/me
-    // observer verify the session after this request has settled.
-    client.setQueryData(authKeys.currentUser(), null);
+    // Keep cached identity intact while re-verifying so unsaved forms do not
+    // unmount prematurely if a single endpoint emitted 401.
     setTimeout(() => {
       void client.resetQueries({ queryKey: authKeys.currentUser() }).catch(() => {
         // The query itself carries the 401 for the layout guard.

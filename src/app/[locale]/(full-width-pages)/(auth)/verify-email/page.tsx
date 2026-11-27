@@ -1,5 +1,6 @@
 import EmailRegistrationForm from "@/components/auth/EmailRegistrationForm";
 import type { Metadata } from "next";
+import { setRequestLocale } from "next-intl/server";
 
 import { buildAppPageMetadata } from "@/lib/page-titles.server";
 
@@ -17,6 +18,12 @@ export function generateMetadata({
   });
 }
 
-export default function VerifyEmailPage() {
+export default async function VerifyEmailPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   return <EmailRegistrationForm />;
 }

@@ -3,10 +3,11 @@ import WorkOverviewPanel from"./WorkOverviewPanel";
 import { WORK_STATUS_ORDER, type WorkStatus } from"./work-types";
 
 const STATUS_HEX: Record<WorkStatus, string> = {
-  DONE:"#22A06B",
-  IN_REVIEW:"#8270DB",
-  IN_PROGRESS:"#0C66E4",
-  TODO:"#E56910",
+  DONE: "#22A06B",
+  IN_REVIEW: "#8270DB",
+  BLOCKED: "#E2483D",
+  IN_PROGRESS: "#0C66E4",
+  TODO: "#E56910",
 };
 
 export default function WorkOverviewStatusPanel({

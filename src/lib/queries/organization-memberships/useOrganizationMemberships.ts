@@ -48,9 +48,9 @@ function queryOptions() {
   return {
     retry: false,
     throwOnError: false,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     networkMode: "always" as const,
   };

@@ -3,6 +3,7 @@
 import {
   Fragment,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -57,6 +58,7 @@ const UNASSIGNED_PERSON: WorkPerson = {
 };
 
 const INLINE_CREATE_TYPES: readonly WorkItemType[] = ["TASK", "STORY", "BUG"];
+const VISIBLE_ROW_STEP = 100;
 
 function createdAtTimestamp(value?: string): number {
   const timestamp = Date.parse(value ?? "");
@@ -297,8 +299,26 @@ export default function WorkListView({
     }
   }, [inlineCreating]);
 
+  const [visibleRowLimit, setVisibleRowLimit] = useState(VISIBLE_ROW_STEP);
   const visibleColumns = columns.filter((col) => col.visible);
   const allItems = groups.flatMap((group) => group.items);
+  const { windowedGroups, renderedRowCount } = useMemo(() => {
+    if (allItems.length <= visibleRowLimit) {
+      return { windowedGroups: groups, renderedRowCount: allItems.length };
+    }
+    let remaining = visibleRowLimit;
+    const sliced: WorkItemGroup[] = [];
+    for (const group of groups) {
+      if (remaining <= 0) break;
+      const itemsSlice = group.items.slice(0, remaining);
+      remaining -= itemsSlice.length;
+      sliced.push({ ...group, items: itemsSlice });
+    }
+    return {
+      windowedGroups: sliced,
+      renderedRowCount: visibleRowLimit - remaining,
+    };
+  }, [allItems.length, groups, visibleRowLimit]);
   const parentCandidates = [...(allWorkspaceItems ?? allItems)].sort(
     (a, b) =>
       createdAtTimestamp(b.createdAt) - createdAtTimestamp(a.createdAt),
@@ -788,7 +808,7 @@ export default function WorkListView({
           </thead>
 
           <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-            {groups.map((group) => {
+            {windowedGroups.map((group) => {
               const isGroupCollapsed = collapsedGroups.has(group.id);
               return (
                 <Fragment key={group.id}>
@@ -2591,7 +2611,20 @@ export default function WorkListView({
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 tabular-nums">
+          <div className="flex items-center gap-2 tabular-nums">
+            {allItems.length > renderedRowCount && (
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleRowLimit((current) => current + VISIBLE_ROW_STEP)
+                }
+                className="inline-flex h-7 cursor-pointer items-center rounded border border-brand-200 bg-brand-50 px-2.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
+              >
+                {isVi
+                  ? `Hiển thị thêm (${allItems.length - renderedRowCount})`
+                  : `Show more (${allItems.length - renderedRowCount})`}
+              </button>
+            )}
             <span className="font-medium text-gray-600 dark:text-gray-300">
               {isVi
                 ? `${allItems.length} / ${totalCount ?? allItems.length}`

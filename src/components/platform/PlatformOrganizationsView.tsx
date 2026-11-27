@@ -58,7 +58,7 @@ export default function PlatformOrganizationsView(
         !p.routeOrganizationId && (
           <button
             type="button"
-            className="ml-auto block rounded border border-gray-200 bg-transparent px-3 py-1.5 text-sm dark:border-gray-700"
+            className="ms-auto block rounded border border-gray-200 bg-transparent px-3 py-1.5 text-sm dark:border-gray-700"
             onClick={() => p.setIsCreateModalOpen(true)}
           >
             {t("organizations.create")}

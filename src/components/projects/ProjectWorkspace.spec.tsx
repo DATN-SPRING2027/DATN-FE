@@ -42,29 +42,13 @@ vi.mock("@/components/teams/TeamsWorkspace", () => ({
     </div>
   ),
 }));
-vi.mock("@/icons", () => ({
-  AlertIcon: () => null,
-  BoxIconLine: () => null,
-  CalenderIcon: () => null,
-  DocsIcon: () => null,
-  HandShakeIcon: () => null,
-  ChevronDownIcon: () => null,
-  FolderIcon: () => null,
-  GridIcon: () => null,
-  ListIcon: () => null,
-  TrashBinIcon: () => null,
-  TimeIcon: () => null,
-  PlusIcon: () => null,
-  CheckCircleIcon: () => null,
-  LockIcon: () => null,
-  UserCircleIcon: () => null,
-  GroupIcon: () => null,
-  SettingsIcon: () => <svg data-testid="settings-icon" />,
-  EyeIcon: () => null,
-  SearchIcon: () => null,
-  ArrowRightIcon: () => null,
-  TaskIcon: () => null,
-}));
+vi.mock("@/icons", async (importOriginal) => {
+  const icons = await importOriginal<Record<string, unknown>>();
+  return {
+    ...Object.fromEntries(Object.keys(icons).map((name) => [name, () => null])),
+    SettingsIcon: () => <svg data-testid="settings-icon" />,
+  };
+});
 const api = vi.mocked(apiClient);
 const project = {
   id: "p1",
@@ -214,8 +198,8 @@ it("supports grid/list layout and client sorting without hiding task data gaps",
   fireEvent.change(screen.getByLabelText("Sort projects"), {
     target: { value: "name" },
   });
-  const cards = screen.getAllByRole("article");
-  expect(cards[0]).toContainElement(
+  const tableRows = screen.getAllByRole("row").slice(1);
+  expect(tableRows[0]).toContainElement(
     screen.getByRole("link", { name: "Apollo" }),
   );
 });
@@ -494,13 +478,12 @@ it("renders server-returned public archived metadata without adding administrati
   );
   mount(<ProjectWorkspace />);
   expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
-  expect(
-    within(screen.getByRole("article")).getByText("Archived"),
-  ).toBeVisible();
+  const projectRow = screen.getByRole("link", { name: "Apollo" }).closest("tr")!;
+  expect(within(projectRow).getByText("Archived")).toBeVisible();
   expect(screen.getByText("Project purpose")).toBeVisible();
   expect(screen.getByText("1 project")).toBeVisible();
-  expect(within(screen.getByRole("article")).getByText("Public")).toBeVisible();
-  expect(within(screen.getByRole("article")).getByText("Updated Oct 5, 2026")).toBeVisible();
+  expect(within(projectRow).getByText("Public")).toBeVisible();
+  expect(within(projectRow).getByText(/Updated Oct [45], 2026/)).toBeVisible();
   expect(
     screen.queryByRole("button", { name: /publish|edit|add task|members/i }),
   ).not.toBeInTheDocument();

@@ -253,6 +253,49 @@ describe("BFF AI Chat SSE streaming", () => {
     });
   });
 
+  it("returns structured 503 BACKEND_UNAVAILABLE with requestId when non-chat backend routes are unreachable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValueOnce(new TypeError("connect ECONNREFUSED")),
+    );
+
+    const path = ["iam", "projects"];
+    const req = new NextRequest(
+      `http://localhost:3000/api/backend/${path.join("/")}`,
+      { headers: { "x-request-id": "req-outage-1" } },
+    );
+    const response = await GET(req, { params: Promise.resolve({ path }) });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toMatchObject({
+      code: "BACKEND_UNAVAILABLE",
+      message: "Backend service is temporarily unavailable.",
+      requestId: "req-outage-1",
+    });
+  });
+
+  it("returns structured 504 BACKEND_TIMEOUT when an upstream non-chat request times out", async () => {
+    const timeoutError = new Error("The operation timed out");
+    timeoutError.name = "TimeoutError";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(timeoutError));
+
+    const path = ["capture", "projects", "proj-1", "documents"];
+    const req = new NextRequest(
+      `http://localhost:3000/api/backend/${path.join("/")}`,
+      { headers: { "x-request-id": "req-timeout-1" } },
+    );
+    const response = await GET(req, { params: Promise.resolve({ path }) });
+
+    expect(response.status).toBe(504);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toMatchObject({
+      code: "BACKEND_TIMEOUT",
+      message: "Backend request timed out.",
+      requestId: "req-timeout-1",
+    });
+  });
+
   it("relays MCP Streamable HTTP request and response headers on /api/backend/mcp", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json(

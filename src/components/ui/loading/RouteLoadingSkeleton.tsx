@@ -1,7 +1,21 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useMessages, useTranslations } from "next-intl";
 import { usePathname } from "@/i18n/navigation";
+
+function lookupScopedMessage(
+  messages: Record<string, unknown>,
+  path: string,
+): string | undefined {
+  let cursor: unknown = messages;
+  for (const segment of path.split(".")) {
+    if (!cursor || typeof cursor !== "object" || !(segment in cursor)) {
+      return undefined;
+    }
+    cursor = (cursor as Record<string, unknown>)[segment];
+  }
+  return typeof cursor === "string" ? cursor : undefined;
+}
 
 export type RouteLoadingVariant =
   | "admin"
@@ -218,21 +232,10 @@ export default function RouteLoadingSkeleton({
   loadingLabel?: string;
 }) {
   const t = useTranslations("common");
+  const messages = useMessages() as Record<string, unknown>;
   const resolvedLoadingLabel = loadingLabel ?? t("loading");
   const pathname = usePathname();
-  const projects = useTranslations("projects");
-  const projectMembers = useTranslations("projectMembers");
-  const organizationMembers = useTranslations("organizationMembers");
-  const organizationSettings = useTranslations("organizationSettings");
-  const work = useTranslations("work");
-  const chat = useTranslations("chat");
-  const teamFoundation = useTranslations("teamFoundation");
-  const workNotes = useTranslations("workNotes");
-  const users = useTranslations("users");
-  const platformConsole = useTranslations("platformConsole");
-  const auth = useTranslations("auth");
-  const authExperience = useTranslations("authExperience");
-  const notifications = useTranslations("header.notifications");
+  const msg = (path: string) => lookupScopedMessage(messages, path);
   const segments = pathname.split("/").filter(Boolean);
   let resolvedVariant = variant;
   let title: string | undefined;
@@ -240,78 +243,78 @@ export default function RouteLoadingSkeleton({
 
   if (segments[0] === "platform" && segments[1] === "signin") {
     resolvedVariant = "auth";
-    title = auth("platformSignIn");
+    title = msg("auth.platformSignIn");
   } else if (segments[0] === "signin") {
     resolvedVariant = "auth";
-    title = authExperience("signinTitle");
+    title = msg("authExperience.signinTitle");
   } else if (segments[0] === "signup") {
     resolvedVariant = "auth";
-    title = authExperience("signupTitle");
+    title = msg("authExperience.signupTitle");
   } else if (segments[0] === "reset-password") {
     resolvedVariant = "auth";
-    title = auth("forgotPasswordTitle");
+    title = msg("auth.forgotPasswordTitle");
   } else if (segments[0] === "verify-email") {
     resolvedVariant = "auth";
-    title = auth("emailRegistrationChoosePasswordTitle");
+    title = msg("auth.emailRegistrationChoosePasswordTitle");
   } else if (segments[0] === "select-organization") {
     resolvedVariant = "auth";
-    title = auth("googleSelectOrganization");
+    title = msg("auth.googleSelectOrganization");
   } else if (segments[0] === "onboarding") {
     resolvedVariant = "auth";
-    title = auth("onboardingTitle");
+    title = msg("auth.onboardingTitle");
   } else if (segments[0] === "error-404") {
     resolvedVariant = "not-found";
   } else if (segments[0] === "projects") {
     if (segments.length === 1) {
       resolvedVariant = "projects";
-      title = projects("title");
-      actionLabel = projects("createNew");
+      title = msg("projects.title");
+      actionLabel = msg("projects.createNew");
     } else if (segments[1] === "new") {
       resolvedVariant = "project-create";
-      title = projects("createCardTitle");
+      title = msg("projects.createCardTitle");
     } else {
       switch (segments[2]) {
         case "members":
           resolvedVariant = "project-members";
-          title = projectMembers("title");
-          actionLabel = projectMembers("add");
+          title = msg("projectMembers.title");
+          actionLabel = msg("projectMembers.add");
           break;
         case "teams":
           if (segments[3] === "new" || segments[4] === "edit") {
             resolvedVariant = "team-form";
             title = segments[4] === "edit"
-              ? teamFoundation("information")
-              : teamFoundation("create");
+              ? msg("teamFoundation.information")
+              : msg("teamFoundation.create");
           } else if (segments[3]) {
             resolvedVariant = "team-detail";
-            title = teamFoundation("information");
+            title = msg("teamFoundation.information");
           } else {
             resolvedVariant = "project-teams";
-            title = teamFoundation("title");
-            actionLabel = teamFoundation("create");
+            title = msg("teamFoundation.title");
+            actionLabel = msg("teamFoundation.create");
           }
           break;
         case "work":
           resolvedVariant = "project-work";
-          title = work("title");
-          actionLabel = work("create");
+          title = msg("work.title");
+          actionLabel = msg("work.create");
           break;
         case "documents":
           resolvedVariant = "project-documents";
-          title = projects("projectDocumentsTitle");
+          title = msg("projects.projectDocumentsTitle");
           break;
         case "work-notes":
           resolvedVariant = "project-work-notes";
-          title = workNotes("title");
-          actionLabel = workNotes("createNote");
+          title = msg("workNotes.title");
+          actionLabel = msg("workNotes.createNote");
           break;
         case "work-reports":
           resolvedVariant = "project-work-reports";
-          title = projects("workReportsTitle");
+          title = msg("projects.workReportsTitle");
           break;
         case "settings":
           resolvedVariant = "project-settings";
-          title = projects("settings");
+          title = msg("projects.settings");
           break;
         default:
           resolvedVariant = "project-detail";
@@ -320,30 +323,30 @@ export default function RouteLoadingSkeleton({
   } else if (segments[0] === "organization") {
     if (segments[1] === "settings") {
       resolvedVariant = "organization-settings";
-      title = organizationSettings("title");
+      title = msg("organizationSettings.title");
     } else {
       resolvedVariant = "organization-members";
-      title = organizationMembers("title");
-      actionLabel = organizationMembers("inviteButton");
+      title = msg("organizationMembers.title");
+      actionLabel = msg("organizationMembers.inviteButton");
     }
   } else if (segments[0] === "users") {
     resolvedVariant = "users";
-    title = users("title");
+    title = msg("users.title");
   } else if (segments[0] === "workspace") {
     resolvedVariant = "workspace";
-    title = work("workspaceTitle");
+    title = msg("work.workspaceTitle");
   } else if (segments[0] === "chat") {
     resolvedVariant = "chat";
-    title = chat("title");
+    title = msg("chat.title");
   } else if (segments[0] === "notifications") {
     resolvedVariant = "notifications";
-    title = notifications("title");
+    title = msg("header.notifications.title");
   } else if (segments[0] === "platform") {
     resolvedVariant = "platform";
-    title = platformConsole(`pages.${segments[1] || "dashboard"}.title`);
+    title = msg(`platformConsole.pages.${segments[1] || "dashboard"}.title`);
   } else if (segments[0] === "dashboard") {
     resolvedVariant = "admin";
-    title = platformConsole("pages.dashboard.title");
+    title = msg("pageTitles.dashboard");
   }
 
   return (

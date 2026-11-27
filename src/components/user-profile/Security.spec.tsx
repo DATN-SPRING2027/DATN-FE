@@ -6,7 +6,10 @@ import messages from "@/messages/en.json";
 import { apiClient } from "@/lib/api-client";
 import Security from "./Security";
 
-vi.mock("@/lib/api-client", () => ({ apiClient: vi.fn() }));
+vi.mock("@/lib/api-client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api-client")>()),
+  apiClient: vi.fn(),
+}));
 
 const mockedApiClient = vi.mocked(apiClient);
 

@@ -130,7 +130,7 @@ export default function LandingHowItWorks() {
                   key={item.step}
                   type="button"
                   onClick={() => setActiveStep(idx)}
-                  className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition-all ${
+                  className={`flex items-center gap-2.5 rounded-2xl border p-3 text-start transition-all ${
                     isSelected
                       ? "border-blue-600 bg-white shadow-md ring-2 ring-blue-500/20 dark:bg-gray-800 dark:border-blue-500"
                       : "border-slate-200 bg-[#F8FAFC] hover:border-blue-300 hover:bg-white dark:border-gray-800 dark:bg-gray-800/60 dark:hover:bg-gray-800"
@@ -253,7 +253,7 @@ export default function LandingHowItWorks() {
         </div>
 
         {/* Core Principle Callout */}
-        <div className="mt-8 mx-auto max-w-xl rounded-2xl border border-blue-200 bg-blue-50/70 p-3.5 text-center sm:text-left dark:border-blue-900/50 dark:bg-blue-950/40">
+        <div className="mt-8 mx-auto max-w-xl rounded-2xl border border-blue-200 bg-blue-50/70 p-3.5 text-center sm:text-start dark:border-blue-900/50 dark:bg-blue-950/40">
           <div className="flex items-center justify-center sm:justify-start gap-2 text-xs">
             <InfoIcon className="h-4 w-4 text-blue-600 shrink-0" />
             <span className="font-bold text-blue-900 dark:text-blue-300">

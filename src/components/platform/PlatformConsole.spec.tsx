@@ -5,9 +5,41 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-client";
-import PlatformConsole from "./PlatformConsole";
+import PlatformConsole, { apiMessage } from "./PlatformConsole";
+
+const { pendingDynamicLoads } = vi.hoisted(() => ({
+  pendingDynamicLoads: new Set<Promise<unknown>>(),
+}));
+
+vi.mock("next/dynamic", () => ({
+  default: (
+    loader: () => Promise<
+      | { default: React.ComponentType<Record<string, unknown>> }
+      | React.ComponentType<Record<string, unknown>>
+    >,
+    options?: { loading?: () => React.ReactNode },
+  ) => {
+    let Loaded: React.ComponentType<Record<string, unknown>> | null = null;
+    const promise = Promise.resolve()
+      .then(() => loader())
+      .then((mod) => {
+        Loaded =
+          typeof mod === "function"
+            ? mod
+            : (mod as { default: React.ComponentType<Record<string, unknown>> })
+                .default;
+      });
+    pendingDynamicLoads.add(promise);
+    return function DynamicTestComponent(props: Record<string, unknown>) {
+      if (Loaded) {
+        return <Loaded {...props} />;
+      }
+      return options?.loading ? options.loading() : null;
+    };
+  },
+}));
 
 let originalDialogShowModal: PropertyDescriptor | undefined;
 
@@ -440,6 +472,14 @@ function renderUserDirectory(user: ReturnType<typeof makePlatformUser>) {
 }
 
 describe("PlatformConsole", () => {
+  beforeAll(async () => {
+    let prevSize = -1;
+    while (pendingDynamicLoads.size !== prevSize) {
+      prevSize = pendingDynamicLoads.size;
+      await Promise.all(Array.from(pendingDynamicLoads));
+    }
+  });
+
   afterEach(() => {
     if (originalDialogShowModal) {
       Object.defineProperty(
@@ -1603,5 +1643,88 @@ describe("PlatformConsole", () => {
       }),
       true,
     );
+  });
+
+  it("extracts safe 4xx backend ApiError messages in apiMessage while falling back for 5xx and generic errors", () => {
+    expect(
+      apiMessage(
+        new ApiError(409, "CONFLICT", "Organization slug already exists"),
+        "fallback",
+      ),
+    ).toBe("Organization slug already exists");
+    expect(
+      apiMessage(
+        new ApiError(403, "FORBIDDEN", "Cannot suspend the last manager"),
+        "fallback",
+      ),
+    ).toBe("Cannot suspend the last manager");
+    expect(
+      apiMessage(
+        new ApiError(500, "INTERNAL", "Database stack trace"),
+        "fallback",
+      ),
+    ).toBe("fallback");
+    expect(
+      apiMessage(
+        new ApiError(400, "BAD_REQUEST", "API request failed: 400"),
+        "fallback",
+      ),
+    ).toBe("fallback");
+    expect(apiMessage(new Error("raw error"), "fallback")).toBe("fallback");
+  });
+
+  it("enforces focus trap, Escape close, focus restore, scroll lock, and accessible toast dismiss on suspend dialog", async () => {
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.memberships.membership.read",
+      "platform.memberships.lifecycle.manage",
+    ];
+    suspend.mutateAsync.mockRejectedValueOnce(
+      new ApiError(409, "LAST_MANAGER", "Cannot suspend the last manager"),
+    );
+    render(<PlatformConsole />);
+
+    const prevOverflow = document.body.style.overflow;
+    const trigger = screen.getByRole("button", { name: "memberships.suspend" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", {
+      name: "memberships.confirmTitle",
+    });
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.body.dataset.scrollLockCount).toBe("1");
+    expect(within(dialog).queryByText("Policy Guard")).not.toBeInTheDocument();
+
+    const closeBtn = within(dialog).getByRole("button", { name: "close" });
+    const confirmBtn = within(dialog).getByRole("button", {
+      name: "memberships.confirmSuspend",
+    });
+    expect(closeBtn).toHaveFocus();
+
+    // Shift+Tab from first focusable wraps to last
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(confirmBtn).toHaveFocus();
+
+    // Tab from last focusable wraps back to first
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(closeBtn).toHaveFocus();
+
+    // Triggering a 409 error shows backend detail in status toast with accessible close button
+    fireEvent.click(confirmBtn);
+    const toast = await screen.findByRole("status");
+    expect(toast).toHaveTextContent("Cannot suspend the last manager");
+    const dismissToastBtn = within(toast).getByRole("button", { name: "close" });
+    fireEvent.click(dismissToastBtn);
+    expect(screen.queryByText("Cannot suspend the last manager")).not.toBeInTheDocument();
+
+    // Escape closes dialog, unlocks body scroll, and restores focus to trigger
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(
+      screen.queryByRole("dialog", { name: "memberships.confirmTitle" }),
+    ).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe(prevOverflow);
+    expect(document.body.dataset.scrollLockCount).toBeUndefined();
+    expect(trigger).toHaveFocus();
   });
 });

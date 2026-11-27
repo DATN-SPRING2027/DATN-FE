@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from"react";
+import { CurvedArrowRightIcon } from "@/icons";
 import { INITIAL_INTAKE_FORMS, PREVIEW_PEOPLE } from"./work-preview-data";
 import { MonoIcon, type MonoIconName } from"./WorkMonoIcons";
 import type {
@@ -984,24 +985,11 @@ export default function WorkFormsView({
           </div>
 
           {/* Center Curved Hand-Drawn Arrow */}
-          <div aria-hidden="true"className="hidden md:block">
-            <svg width="70"height="35"viewBox="0 0 70 35"fill="none">
-              <path
-                d="M4 26 C 22 6, 46 6, 62 20"
-                stroke="#475467"
-                strokeWidth="2"
-                strokeLinecap="round"
-                fill="none"
-              />
-              <path
-                d="M55 21 L63 21 L60 13"
-                stroke="#475467"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </svg>
+          <div aria-hidden="true" className="hidden md:block">
+            <CurvedArrowRightIcon
+              aria-hidden="true"
+              className="h-[35px] w-[70px] text-gray-600 rtl:-scale-x-100 dark:text-gray-400"
+            />
           </div>
 
           {/* Right Card: Track requests with Green Circle Backdrop */}

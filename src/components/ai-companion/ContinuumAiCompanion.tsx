@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useOptionalSidebar } from "@/context/SidebarContext";
-import { MinusIcon } from "@/icons";
+import { CloseIcon, MinusIcon } from "@/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useFloatingChatStore } from "@/stores/floating-chat";
@@ -127,6 +127,8 @@ export default function ContinuumAiCompanion({
   const isHelpOpen = Boolean(sidebar?.isHelpOpen);
 
   const [chatNotice, setChatNotice] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const minimizedTriggerRef = useRef<HTMLButtonElement | null>(null);
   const isEn = locale === "en";
   const pathname = usePathname();
   const isHumanChatPage =
@@ -148,12 +150,6 @@ export default function ContinuumAiCompanion({
   const chatClient = useRef(new CompanionChatClient());
   const requestController = useRef<AbortController | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const minimizedTriggerRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (isMinimized) minimizedTriggerRef.current?.focus({ preventScroll: true });
-  }, [isMinimized]);
   const [robotStatus, setRobotStatus] = useState<RobotStatus>("idle");
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(
@@ -718,9 +714,9 @@ export default function ContinuumAiCompanion({
                 type="button"
                 aria-label="Close AI Companion"
                 onClick={() => setIsOpen(false)}
-                className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
-                ✕
+                <CloseIcon aria-hidden="true" className="size-4" />
               </button>
             </div>
           </header>

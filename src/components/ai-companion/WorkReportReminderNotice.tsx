@@ -13,6 +13,44 @@ import {
   useMarkNotificationReadMutation,
 } from "@/lib/queries/notifications/useNotifications";
 
+type ReminderCandidate = {
+  id: string;
+  target?: {
+    projectId?: string | null;
+    reportId?: string | null;
+    url?: string | null;
+    organizationId?: string | null;
+  } | null;
+};
+
+async function fetchEligibleReminder<T extends ReminderCandidate>(
+  candidates: readonly T[],
+  signal?: AbortSignal,
+): Promise<{ reminder: T; report: WorkReport } | null> {
+  // Skip stale reminders so a submitted report cannot hide another project's deadline.
+  for (const item of candidates.slice(0, 5)) {
+    const projectId = item.target?.projectId;
+    const reportId = item.target?.reportId;
+    if (!projectId || !reportId) continue;
+    try {
+      const report = await apiClient<WorkReport>(
+        `/capture/projects/${encodeURIComponent(projectId)}/work-reports/${encodeURIComponent(reportId)}`,
+        { signal, cache: "no-store" },
+      );
+      if (
+        ["DRAFT", "CHANGES_REQUESTED"].includes(report.status) &&
+        Date.parse(report.dueAt) > Date.now()
+      ) {
+        return { reminder: item, report };
+      }
+    } catch {
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      // Access denial, deleted reports and network errors never expose cached content.
+    }
+  }
+  return null;
+}
+
 /** Server-persisted reminders also appear after returning to the app. */
 export default function WorkReportReminderNotice({
   visible,
@@ -36,9 +74,10 @@ export default function WorkReportReminderNotice({
     !isAccessOrResourceUnavailableError(user.error);
   const query = useNotificationsQuery({
     unreadOnly: true,
-    limit: 100,
+    limit: 20,
     enabled: authenticated,
     organizationId,
+    refetchInterval: false,
   });
   const read = useMarkNotificationReadMutation(organizationId);
   const [dismissed, setDismissed] = useState<string[]>([]);
@@ -66,31 +105,10 @@ export default function WorkReportReminderNotice({
       organizationId,
       candidates.map((item) => item.id),
     ],
-    queryFn: async ({ signal }) => {
-      // Skip stale reminders so a submitted report cannot hide another project's deadline.
-      for (const item of candidates) {
-        const projectId = item.target!.projectId!;
-        const reportId = item.target!.reportId!;
-        try {
-          const report = await apiClient<WorkReport>(
-            `/capture/projects/${encodeURIComponent(projectId)}/work-reports/${encodeURIComponent(reportId)}`,
-            { signal, cache: "no-store" },
-          );
-          if (
-            ["DRAFT", "CHANGES_REQUESTED"].includes(report.status) &&
-            Date.parse(report.dueAt) > now
-          ) {
-            return { reminder: item, report };
-          }
-        } catch {
-          if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-          // Access denial, deleted reports and network errors never expose cached content.
-        }
-      }
-      return null;
-    },
+    queryFn: ({ signal }) => fetchEligibleReminder(candidates, signal),
     enabled: visible && candidates.length > 0,
-    refetchInterval: 30_000,
+    refetchInterval: false,
+    staleTime: 60_000,
     retry: false,
   });
   const reminder = eligible.data?.reminder;

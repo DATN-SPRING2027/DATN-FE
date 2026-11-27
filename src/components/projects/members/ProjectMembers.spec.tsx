@@ -25,26 +25,6 @@ vi.mock("@/i18n/navigation", () => ({
     <a href={href}>{children}</a>
   ),
 }));
-vi.mock("@/icons", () =>
-  Object.fromEntries(
-    [
-      "ChevronDownIcon",
-      "TrashBinIcon",
-      "TimeIcon",
-      "UserCircleIcon",
-      "GroupIcon",
-      "EyeIcon",
-      "FolderIcon",
-      "ListIcon",
-      "CheckCircleIcon",
-      "LockIcon",
-      "PlusIcon",
-      "ArrowRightIcon",
-      "SearchIcon",
-      "AlertIcon",
-    ].map((name) => [name, () => null]),
-  ),
-);
 const api = vi.mocked(apiClient);
 const rawMockImplementation = api.mockImplementation.bind(api);
 api.mockImplementation = ((

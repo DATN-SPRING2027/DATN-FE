@@ -10,7 +10,19 @@ import { useProjectMembersQuery, useProjectMemberAddAccess } from "@/lib/queries
 import { useProjectManagementAccess } from "@/lib/queries/projects/useProjectSettings";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
-import { CalenderIcon, DocsIcon, HandShakeIcon } from "@/icons";
+import {
+  CalenderIcon,
+  CodeBracketsIcon,
+  DocsIcon,
+  FileIcon,
+  GlobeIcon,
+  HandShakeIcon,
+  KanbanCardIcon,
+  LockIcon,
+  PlusIcon,
+  TimeIcon,
+  UsersOutlineIcon,
+} from "@/icons";
 
 export type ProjectTab = "overview" | "members" | "settings" | "teams";
 
@@ -261,48 +273,9 @@ export default function ProjectOverview({
                   }`}
                 >
                   {isPrivate ? (
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      className="h-3 w-3 shrink-0"
-                    >
-                      <rect
-                        x="3.25"
-                        y="7.25"
-                        width="9.5"
-                        height="6.5"
-                        rx="1.5"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                      />
-                      <path
-                        d="M5.25 7.25V5.25a2.75 2.75 0 1 1 5.5 0v2"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    <LockIcon aria-hidden="true" className="h-3 w-3 shrink-0" />
                   ) : (
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      className="h-3 w-3 shrink-0"
-                    >
-                      <circle
-                        cx="8"
-                        cy="8"
-                        r="5.75"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                      />
-                      <path
-                        d="M2.5 8h11M8 2.25c1.6 1.55 2.4 3.47 2.4 5.75S9.6 12.2 8 13.75c-1.6-1.55-2.4-3.47-2.4-5.75S6.4 3.8 8 2.25Z"
-                        stroke="currentColor"
-                        strokeWidth="1.3"
-                      />
-                    </svg>
+                    <GlobeIcon aria-hidden="true" className="h-3 w-3 shrink-0" />
                   )}
                   {t(isPrivate ? "privateWorkspaceBadge" : "publicWorkspaceBadge")}
                 </span>
@@ -320,19 +293,7 @@ export default function ProjectOverview({
               className="h-9 shrink-0 rounded-xl bg-white! px-3.5! py-2! text-xs font-semibold whitespace-nowrap shadow-theme-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-gray-800!"
               ariaLabel={memberLabels("openAdd")}
               startIcon={
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="h-3.5 w-3.5 shrink-0"
-                >
-                  <path
-                    d="M8 3.25v9.5M3.25 8h9.5"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <PlusIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
               }
               onClick={() => {
                 setTab("members");
@@ -359,20 +320,7 @@ export default function ProjectOverview({
                 {t("code")}
               </dt>
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="h-3.5 w-3.5"
-                >
-                  <path
-                    d="M5.5 5L2.5 8l3 3M10.5 5l3 3-3 3M9 3.5l-2 9"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <CodeBracketsIcon aria-hidden="true" className="h-3.5 w-3.5" />
               </span>
             </div>
             <dd className="mt-2 font-mono text-base font-semibold tracking-tight [overflow-wrap:anywhere] text-gray-900 dark:text-white/90">
@@ -396,48 +344,9 @@ export default function ProjectOverview({
                 }`}
               >
                 {isPrivate ? (
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    className="h-3.5 w-3.5"
-                  >
-                    <rect
-                      x="3.25"
-                      y="7.25"
-                      width="9.5"
-                      height="6.5"
-                      rx="1.5"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                    />
-                    <path
-                      d="M5.25 7.25V5.25a2.75 2.75 0 1 1 5.5 0v2"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                    />
-                  </svg>
+                  <LockIcon aria-hidden="true" className="h-3.5 w-3.5" />
                 ) : (
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    className="h-3.5 w-3.5"
-                  >
-                    <circle
-                      cx="8"
-                      cy="8"
-                      r="5.75"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                    />
-                    <path
-                      d="M2.5 8h11M8 2.25c1.6 1.55 2.4 3.47 2.4 5.75S9.6 12.2 8 13.75c-1.6-1.55-2.4-3.47-2.4-5.75S6.4 3.8 8 2.25Z"
-                      stroke="currentColor"
-                      strokeWidth="1.3"
-                    />
-                  </svg>
+                  <GlobeIcon aria-hidden="true" className="h-3.5 w-3.5" />
                 )}
               </span>
             </div>
@@ -455,32 +364,7 @@ export default function ProjectOverview({
                 {t("activeMembers")}
               </dt>
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400">
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="h-3.5 w-3.5"
-                >
-                  <circle
-                    cx="6.25"
-                    cy="5.5"
-                    r="2.25"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                  />
-                  <path
-                    d="M2.5 12.75c0-1.9 1.68-3.25 3.75-3.25S10 10.85 10 12.75"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M10.75 4.25a2 2 0 0 1 0 3.75M13.5 12.75c0-1.45-1.05-2.65-2.5-3.05"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <UsersOutlineIcon aria-hidden="true" className="h-3.5 w-3.5" />
               </span>
             </div>
             <dd
@@ -502,26 +386,7 @@ export default function ProjectOverview({
                 {t("updatedAt")}
               </dt>
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="h-3.5 w-3.5"
-                >
-                  <circle
-                    cx="8"
-                    cy="8"
-                    r="5.75"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                  />
-                  <path
-                    d="M8 5v3.25l2.25 1.25"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <TimeIcon aria-hidden="true" className="h-3.5 w-3.5" />
               </span>
             </div>
             <dd className="mt-2 text-sm font-semibold tabular-nums [overflow-wrap:anywhere] text-gray-900 sm:text-base dark:text-white/90">
@@ -555,28 +420,7 @@ export default function ProjectOverview({
                   <div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          className="h-4 w-4"
-                        >
-                          <rect
-                            x="2.25"
-                            y="2.75"
-                            width="11.5"
-                            height="10.5"
-                            rx="1.75"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                          />
-                          <path
-                            d="M5.25 6.5h5.5M5.25 9.5h3.5"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinecap="round"
-                          />
-                        </svg>
+                        <KanbanCardIcon aria-hidden="true" className="h-4 w-4" />
                       </span>
                       <span className="text-xs font-semibold text-brand-600 transition-transform group-hover:translate-x-0.5 dark:text-brand-400">
                         →
@@ -599,25 +443,7 @@ export default function ProjectOverview({
                   <div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-light-50 text-blue-light-600 dark:bg-blue-light-500/15 dark:text-blue-light-300">
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          className="h-4 w-4"
-                        >
-                          <path
-                            d="M4 2.5h5.5L12.5 5.5v8a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M9 2.5v3h3M5.5 8.5h5M5.5 11h3.5"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinecap="round"
-                          />
-                        </svg>
+                        <FileIcon aria-hidden="true" className="h-4 w-4" />
                       </span>
                       <span className="text-xs font-semibold text-brand-600 transition-transform group-hover:translate-x-0.5 dark:text-brand-400">
                         →
@@ -686,32 +512,7 @@ export default function ProjectOverview({
                   <div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400">
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          className="h-4 w-4"
-                        >
-                          <circle
-                            cx="6.25"
-                            cy="5.5"
-                            r="2.25"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                          />
-                          <path
-                            d="M2.5 12.75c0-1.9 1.68-3.25 3.75-3.25S10 10.85 10 12.75"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinecap="round"
-                          />
-                          <path
-                            d="M10.75 4.25a2 2 0 0 1 0 3.75M13.5 12.75c0-1.45-1.05-2.65-2.5-3.05"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinecap="round"
-                          />
-                        </svg>
+                        <UsersOutlineIcon aria-hidden="true" className="h-4 w-4" />
                       </span>
                       <span className="text-xs font-semibold text-brand-600 transition-transform group-hover:translate-x-0.5 dark:text-brand-400">
                         →

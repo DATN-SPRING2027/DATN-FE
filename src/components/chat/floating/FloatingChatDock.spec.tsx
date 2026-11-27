@@ -17,6 +17,7 @@ import NotificationDropdown from "@/components/header/NotificationDropdown";
 import ContinuumAiCompanion from "@/components/ai-companion/ContinuumAiCompanion";
 import { useChatNavigation } from "@/stores/chat-navigation";
 import { useFloatingChatStore } from "@/stores/floating-chat";
+import { resetChatWsCooldown } from "./chat-shared-helpers";
 import FloatingChatDock from "./FloatingChatDock";
 
 vi.mock("@/lib/api-client", async (original) => ({
@@ -148,6 +149,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     sidebarState.isHelpOpen = false;
     useFloatingChatStore.getState().reset();
     useChatNavigation.getState().clear();
+    resetChatWsCooldown();
     api.mockReset();
     routerPushMock.mockReset();
     routeState.pathname = "/projects/507f1f77bcf86cd799439011/work";

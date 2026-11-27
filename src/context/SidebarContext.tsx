@@ -1,7 +1,15 @@
 "use client";
 
 import { usePathname } from "@/i18n/navigation";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 export const SIDEBAR_DEFAULT_WIDTH = 240;
 export const SIDEBAR_MIN_WIDTH = 180;
@@ -50,6 +58,14 @@ export const useSidebar = () => {
 
 export const useOptionalSidebar = () => useContext(SidebarContext);
 
+function persistSidebarWidth(width: number): void {
+  try {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(width));
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
 export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -58,11 +74,14 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isMobile, setIsMobile] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [sidebarWidth, setSidebarWidthState] = useState<number>(SIDEBAR_DEFAULT_WIDTH);
-  const [isResizing, setIsResizing] = useState(false);
+  const [isResizing, setIsResizingState] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const pathname = usePathname();
+  const isResizingRef = useRef(false);
+  const latestWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
+  const widthPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Restore saved sidebar width and expanded/icon-only state from localStorage on mount
   useEffect(() => {
@@ -71,7 +90,9 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
       if (rawWidth !== null) {
         const parsed = Number(rawWidth);
         if (Number.isFinite(parsed)) {
-          setSidebarWidthState(clampSidebarWidth(parsed));
+          const clamped = clampSidebarWidth(parsed);
+          latestWidthRef.current = clamped;
+          setSidebarWidthState(clamped);
         }
       }
       const rawExpanded = window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY);
@@ -83,6 +104,14 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch {
       // Ignore storage access errors in restricted environments
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (widthPersistTimerRef.current) {
+        clearTimeout(widthPersistTimerRef.current);
+      }
+    };
   }, []);
 
   const setIsExpanded = useCallback((nextExpanded: boolean) => {
@@ -99,18 +128,38 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const setSidebarWidth = useCallback((nextWidth: number) => {
     const clamped = clampSidebarWidth(nextWidth);
+    latestWidthRef.current = clamped;
     setSidebarWidthState(clamped);
-    try {
-      window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(clamped));
-    } catch {
-      // Ignore storage write errors
+    // Avoid synchronous localStorage writes on every mousemove frame while dragging.
+    if (isResizingRef.current) return;
+    if (widthPersistTimerRef.current) {
+      clearTimeout(widthPersistTimerRef.current);
+    }
+    widthPersistTimerRef.current = setTimeout(() => {
+      widthPersistTimerRef.current = null;
+      persistSidebarWidth(latestWidthRef.current);
+    }, 150);
+  }, []);
+
+  const setIsResizing = useCallback((nextResizing: boolean) => {
+    const wasResizing = isResizingRef.current;
+    isResizingRef.current = nextResizing;
+    setIsResizingState(nextResizing);
+    if (wasResizing && !nextResizing) {
+      if (widthPersistTimerRef.current) {
+        clearTimeout(widthPersistTimerRef.current);
+        widthPersistTimerRef.current = null;
+      }
+      persistSidebarWidth(latestWidthRef.current);
     }
   }, []);
 
   const resetSidebarWidth = useCallback(() => {
     setIsExpanded(true);
-    setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
-  }, [setIsExpanded, setSidebarWidth]);
+    latestWidthRef.current = SIDEBAR_DEFAULT_WIDTH;
+    setSidebarWidthState(SIDEBAR_DEFAULT_WIDTH);
+    persistSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
+  }, [setIsExpanded]);
 
   const toggleHelp = useCallback(() => {
     setIsHelpOpen((prev) => !prev);
@@ -150,38 +199,59 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, []);
 
-  const toggleMobileSidebar = () => {
+  const toggleMobileSidebar = useCallback(() => {
     setIsMobileOpen((prev) => !prev);
-  };
+  }, []);
 
-  const toggleSubmenu = (item: string) => {
+  const toggleSubmenu = useCallback((item: string) => {
     setOpenSubmenu((prev) => (prev === item ? null : item));
-  };
+  }, []);
+
+  const effectiveIsExpanded = isMobile ? false : isExpanded;
+  const value = useMemo<SidebarContextType>(
+    () => ({
+      isExpanded: effectiveIsExpanded,
+      isMobileOpen,
+      isHovered,
+      sidebarWidth,
+      isResizing,
+      isHelpOpen,
+      activeItem,
+      openSubmenu,
+      toggleSidebar,
+      setIsExpanded,
+      toggleMobileSidebar,
+      setIsHovered,
+      setSidebarWidth,
+      setIsResizing,
+      resetSidebarWidth,
+      setIsHelpOpen,
+      toggleHelp,
+      setActiveItem,
+      toggleSubmenu,
+    }),
+    [
+      effectiveIsExpanded,
+      isMobileOpen,
+      isHovered,
+      sidebarWidth,
+      isResizing,
+      isHelpOpen,
+      activeItem,
+      openSubmenu,
+      toggleSidebar,
+      setIsExpanded,
+      toggleMobileSidebar,
+      setSidebarWidth,
+      setIsResizing,
+      resetSidebarWidth,
+      toggleHelp,
+      toggleSubmenu,
+    ],
+  );
 
   return (
-    <SidebarContext.Provider
-      value={{
-        isExpanded: isMobile ? false : isExpanded,
-        isMobileOpen,
-        isHovered,
-        sidebarWidth,
-        isResizing,
-        isHelpOpen,
-        activeItem,
-        openSubmenu,
-        toggleSidebar,
-        setIsExpanded,
-        toggleMobileSidebar,
-        setIsHovered,
-        setSidebarWidth,
-        setIsResizing,
-        resetSidebarWidth,
-        setIsHelpOpen,
-        toggleHelp,
-        setActiveItem,
-        toggleSubmenu,
-      }}
-    >
+    <SidebarContext.Provider value={value}>
       {children}
     </SidebarContext.Provider>
   );

@@ -128,9 +128,118 @@ export function tokenizeTextWithCitations(
 }
 
 const MONGO_OBJECT_ID_REGEX = /^[a-f0-9]{24}$/i;
+const CONTINUUM_SOURCE_URI_REGEX =
+  /^(?:continuum:)?(project_document|work_report|work-report|work_note|work-note|task_note|task-note):([a-f0-9]{24})$/i;
+
+export type ContinuumCitationSourceKind =
+  | "project_document"
+  | "work_report"
+  | "work_note";
+
+export type ContinuumCitationLike = Readonly<{
+  documentId?: string;
+  sagDocumentId?: string;
+  sourceId?: string;
+  sourceName?: string;
+  documentName?: string;
+  projectId?: string;
+  sourceKind?: string;
+  source_kind?: string;
+  publicSourceId?: string;
+  public_source_id?: string;
+  externalRef?: string;
+  external_ref?: string;
+}>;
+
+export type ParsedContinuumCitationTarget = Readonly<{
+  sourceKind: ContinuumCitationSourceKind;
+  entityId: string | null;
+  hasExplicitKind: boolean;
+}>;
+
+export function normalizeContinuumSourceKind(
+  raw: string | undefined | null,
+): ContinuumCitationSourceKind | null {
+  if (!raw) return null;
+  const normalized = raw.trim().toLowerCase().replace(/-/g, "_");
+  if (normalized === "work_report" || normalized === "report") {
+    return "work_report";
+  }
+  if (
+    normalized === "work_note" ||
+    normalized === "task_note" ||
+    normalized === "note"
+  ) {
+    return "work_note";
+  }
+  if (normalized === "project_document" || normalized === "document") {
+    return "project_document";
+  }
+  return null;
+}
 
 export function isContinuumDocumentId(documentId: string | undefined): boolean {
   return Boolean(documentId && MONGO_OBJECT_ID_REGEX.test(documentId));
+}
+
+export function parseContinuumCitationTarget(
+  citation: ContinuumCitationLike | null | undefined,
+): ParsedContinuumCitationTarget {
+  if (!citation) {
+    return {
+      sourceKind: "project_document",
+      entityId: null,
+      hasExplicitKind: false,
+    };
+  }
+
+  const explicitKind =
+    normalizeContinuumSourceKind(citation.sourceKind) ??
+    normalizeContinuumSourceKind(citation.source_kind);
+
+  const uriCandidates = [
+    citation.documentId,
+    citation.publicSourceId,
+    citation.public_source_id,
+    citation.externalRef,
+    citation.external_ref,
+    citation.sourceId,
+  ];
+
+  for (const candidate of uriCandidates) {
+    if (!candidate) continue;
+    const match = CONTINUUM_SOURCE_URI_REGEX.exec(candidate.trim());
+    if (match) {
+      const uriKind =
+        normalizeContinuumSourceKind(match[1]) ?? "project_document";
+      return {
+        sourceKind: explicitKind ?? uriKind,
+        entityId: match[2] ?? null,
+        hasExplicitKind: true,
+      };
+    }
+  }
+
+  const directIdCandidates = [
+    citation.publicSourceId,
+    citation.public_source_id,
+    citation.documentId,
+  ];
+  for (const candidate of directIdCandidates) {
+    if (candidate && isContinuumDocumentId(candidate.trim())) {
+      return {
+        sourceKind: explicitKind ?? "project_document",
+        entityId: candidate.trim(),
+        hasExplicitKind: explicitKind !== null,
+      };
+    }
+  }
+
+  return {
+    sourceKind: explicitKind ?? "project_document",
+    entityId: null,
+    hasExplicitKind: explicitKind !== null,
+  };
 }
 
 export function buildProjectDocumentHref(
@@ -138,6 +247,22 @@ export function buildProjectDocumentHref(
   documentId: string,
 ): string {
   return `/projects/${encodeURIComponent(projectId)}/documents?documentId=${encodeURIComponent(documentId)}`;
+}
+
+export function buildProjectCitationHref(
+  projectId: string,
+  entityId: string,
+  sourceKind: ContinuumCitationSourceKind = "project_document",
+): string {
+  const encodedProject = encodeURIComponent(projectId);
+  const encodedEntity = encodeURIComponent(entityId);
+  if (sourceKind === "work_report") {
+    return `/projects/${encodedProject}/work-reports?reportId=${encodedEntity}`;
+  }
+  if (sourceKind === "work_note") {
+    return `/projects/${encodedProject}/work-notes?noteId=${encodedEntity}`;
+  }
+  return buildProjectDocumentHref(projectId, entityId);
 }
 
 export function isSyntheticSessionExcerpt(excerpt: string): boolean {

@@ -52,6 +52,13 @@ export async function forwardBackendRequest(
   const isAiChatRequest =
     path[0] === "ai-chat" || (path[0] === "platform" && path[1] === "ai");
   const isMcpRequest = path[0] === "mcp";
+  const isLongRunningRequest =
+    isAiChatRequest ||
+    isMcpRequest ||
+    (path[0] === "handover" && path.includes("assist")) ||
+    path.includes("file") ||
+    path.includes("content") ||
+    path.includes("uploads");
   const contentLength = request.headers.get("content-length");
   const streamBody =
     !["GET", "HEAD"].includes(request.method) &&
@@ -70,6 +77,19 @@ export async function forwardBackendRequest(
       usesReadableStream = true;
     }
   }
+  const timeoutMs = isLongRunningRequest ? 120_000 : 30_000;
+  let fetchSignal: AbortSignal | undefined = request.signal;
+  if (
+    !isAiChatRequest &&
+    !isMcpRequest &&
+    typeof AbortSignal?.timeout === "function"
+  ) {
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    fetchSignal =
+      request.signal && typeof AbortSignal.any === "function"
+        ? AbortSignal.any([request.signal, timeoutSignal])
+        : timeoutSignal;
+  }
   let backendResponse: Response;
   try {
     backendResponse = await fetch(
@@ -79,16 +99,21 @@ export async function forwardBackendRequest(
         headers,
         body,
         ...(usesReadableStream ? { duplex: "half" } : {}),
-        ...(request.signal ? { signal: request.signal } : {}),
+        ...(fetchSignal ? { signal: fetchSignal } : {}),
         cache: "no-store",
         redirect: options.redirect ?? "manual",
       },
     );
   } catch (error) {
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === "TimeoutError" ||
+        (!request.signal?.aborted && Boolean(fetchSignal?.aborted)));
     const isAborted =
-      Boolean(request.signal?.aborted) ||
-      (error instanceof Error &&
-        (error.name === "AbortError" || error.name === "ResponseAborted"));
+      !isTimeout &&
+      (Boolean(request.signal?.aborted) ||
+        (error instanceof Error &&
+          (error.name === "AbortError" || error.name === "ResponseAborted")));
     if (isAborted) {
       return Response.json(
         {
@@ -100,6 +125,17 @@ export async function forwardBackendRequest(
           requestId: headers.get("x-request-id"),
         },
         { status: 499, headers: { "cache-control": "no-store" } },
+      );
+    }
+    if (isTimeout) {
+      return Response.json(
+        {
+          code: "BACKEND_TIMEOUT",
+          message: "Backend request timed out.",
+          details: {},
+          requestId: headers.get("x-request-id"),
+        },
+        { status: 504, headers: { "cache-control": "no-store" } },
       );
     }
     if (isAiChatRequest) {
@@ -126,11 +162,21 @@ export async function forwardBackendRequest(
         { status: 503, headers: { "cache-control": "no-store" } },
       );
     }
-    if (!isTeamPath(path)) throw error;
+    if (isTeamPath(path)) {
+      return Response.json(
+        {
+          code: "RETRY_LATER",
+          message: "Team service is unavailable.",
+          details: {},
+          requestId: headers.get("x-request-id"),
+        },
+        { status: 503, headers: { "cache-control": "no-store" } },
+      );
+    }
     return Response.json(
       {
-        code: "RETRY_LATER",
-        message: "Team service is unavailable.",
+        code: "BACKEND_UNAVAILABLE",
+        message: "Backend service is temporarily unavailable.",
         details: {},
         requestId: headers.get("x-request-id"),
       },
@@ -138,7 +184,8 @@ export async function forwardBackendRequest(
     );
   }
   const responseHeaders = new Headers();
-  const requestId = headers.get("x-request-id");
+  const requestId =
+    backendResponse.headers.get("x-request-id") ?? headers.get("x-request-id");
   if (requestId) responseHeaders.set("x-request-id", requestId);
   for (const name of [
     "cache-control",

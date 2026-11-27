@@ -30,10 +30,29 @@ export class ApiError extends Error {
     public readonly organizations?: readonly { id: string; name: string }[],
     public readonly sessionRecoveryFailed = false,
     public readonly details?: Readonly<Record<string, unknown>>,
+    public readonly retryAfterMs?: number,
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+function parseRetryAfterMs(headerValue: string | null | undefined): number | undefined {
+  if (!headerValue) return undefined;
+  const trimmed = headerValue.trim();
+  if (!trimmed) return undefined;
+  const seconds = Number(trimmed);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(Math.max(Math.round(seconds * 1_000), 1_000), 300_000);
+  }
+  const targetMs = Date.parse(trimmed);
+  if (!Number.isNaN(targetMs)) {
+    const delta = targetMs - Date.now();
+    if (delta > 0) {
+      return Math.min(Math.max(Math.round(delta), 1_000), 300_000);
+    }
+  }
+  return undefined;
 }
 
 export function isAccessOrResourceUnavailableError(
@@ -41,6 +60,156 @@ export function isAccessOrResourceUnavailableError(
 ): error is ApiError {
   return error instanceof ApiError && [401, 403, 404].includes(error.status);
 }
+
+const CSRF_COOKIE_PREFIXES = [
+  "__Host-csrf=",
+  "continuum_csrf=",
+  "csrf_token=",
+] as const;
+
+export function getCsrfToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const parts = document.cookie.split(";").map((cookie) => cookie.trim());
+  for (const prefix of CSRF_COOKIE_PREFIXES) {
+    const entry = parts.find((cookie) => cookie.startsWith(prefix));
+    if (entry) {
+      const rawValue = entry.slice(prefix.length);
+      if (!rawValue) continue;
+      try {
+        return decodeURIComponent(rawValue);
+      } catch {
+        return rawValue;
+      }
+    }
+  }
+  return null;
+}
+
+export function hasClientSessionHint(): boolean {
+  return Boolean(getCsrfToken());
+}
+
+let expectedOrganizationId: string | null = null;
+let activeUserIdHint: string | null = null;
+const AUTH_CONTEXT_HINT_KEY = "continuum:auth-context";
+let authContextHint: "PLATFORM" | null | undefined;
+const authContextHintListeners = new Set<() => void>();
+
+function readStoredAuthContextHint(): "PLATFORM" | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(AUTH_CONTEXT_HINT_KEY) === "PLATFORM"
+      ? "PLATFORM"
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getAuthContextHint(): "PLATFORM" | null {
+  if (authContextHint === undefined) {
+    authContextHint = readStoredAuthContextHint();
+  }
+  return authContextHint;
+}
+
+export function setAuthContextHint(context: "PLATFORM" | null): void {
+  const next = context === "PLATFORM" ? "PLATFORM" : null;
+  const current = getAuthContextHint();
+  authContextHint = next;
+  if (typeof window !== "undefined") {
+    try {
+      if (next === "PLATFORM") {
+        window.sessionStorage.setItem(AUTH_CONTEXT_HINT_KEY, "PLATFORM");
+      } else {
+        window.sessionStorage.removeItem(AUTH_CONTEXT_HINT_KEY);
+      }
+    } catch {
+      // Ignore storage access errors in restricted environments.
+    }
+  }
+  if (current !== next) {
+    for (const listener of authContextHintListeners) {
+      listener();
+    }
+  }
+}
+
+export function subscribeAuthContextHint(listener: () => void): () => void {
+  authContextHintListeners.add(listener);
+  return () => {
+    authContextHintListeners.delete(listener);
+  };
+}
+
+export function setExpectedOrganizationId(organizationId: string | null): void {
+  const trimmed = organizationId?.trim();
+  expectedOrganizationId = trimmed ? trimmed : null;
+}
+
+export function getExpectedOrganizationId(): string | null {
+  return expectedOrganizationId;
+}
+
+export function setActiveUserIdHint(userId: string | null): void {
+  const trimmed = userId?.trim();
+  activeUserIdHint = trimmed ? trimmed : null;
+}
+
+export function getActiveUserIdHint(): string | null {
+  return activeUserIdHint;
+}
+
+const AUTH_NO_RECOVERY_ENDPOINTS = new Set([
+  "/auth/login",
+  "/api/v1/auth/login",
+  "/auth/platform/login",
+  "/api/v1/auth/platform/login",
+  "/auth/refresh",
+  "/api/v1/auth/refresh",
+  "/auth/logout",
+  "/api/v1/auth/logout",
+  "/auth/registrations",
+  "/api/v1/auth/registrations",
+  "/auth/registrations/verify",
+  "/api/v1/auth/registrations/verify",
+  "/auth/password-reset/request",
+  "/api/v1/auth/password-reset/request",
+  "/auth/password-reset/confirm",
+  "/api/v1/auth/password-reset/confirm",
+]);
+
+function isOrgScopedEndpoint(normalizedEndpoint: string): boolean {
+  if (
+    normalizedEndpoint.startsWith("/auth/") ||
+    normalizedEndpoint.startsWith("/api/v1/auth/") ||
+    normalizedEndpoint.startsWith("/iam/platform/") ||
+    normalizedEndpoint === "/health" ||
+    normalizedEndpoint === "/api/v1/health" ||
+    normalizedEndpoint === "/iam/organizations" ||
+    normalizedEndpoint.startsWith("/iam/organizations/slug-availability")
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function shouldSkipDefaultJsonContentType(body: BodyInit | null | undefined): boolean {
+  if (body == null) return false;
+  if (typeof FormData !== "undefined" && body instanceof FormData) return true;
+  if (typeof Blob !== "undefined" && body instanceof Blob) return true;
+  if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) return true;
+  if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) return true;
+  if (typeof ReadableStream !== "undefined" && body instanceof ReadableStream) return true;
+  return false;
+}
+
+const CROSS_TAB_REFRESH_LOCK_NAME = "continuum:auth-refresh";
+const CROSS_TAB_REFRESH_AT_KEY = "continuum:auth-refresh-at";
+const CROSS_TAB_REFRESH_LEASE_KEY = "continuum:auth-refresh-lease";
+const CROSS_TAB_REFRESH_CHANNEL = "continuum:auth-refresh-channel";
+const CROSS_TAB_RECENT_REFRESH_WINDOW_MS = 2_500;
+const CROSS_TAB_LEASE_TTL_MS = 10_000;
 
 let refreshInFlight: Promise<unknown> | undefined;
 let sessionGeneration = 0;
@@ -56,14 +225,141 @@ function recoveryError(error: unknown): ApiError {
   );
 }
 
-async function recoverSession(): Promise<void> {
+function readLastCrossTabRefreshAt(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = window.localStorage.getItem(CROSS_TAB_REFRESH_AT_KEY);
+    const parsed = raw ? Number(raw) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function markCrossTabRefreshSucceeded(): void {
+  if (typeof window === "undefined") return;
+  const now = Date.now();
+  try {
+    window.localStorage.setItem(CROSS_TAB_REFRESH_AT_KEY, String(now));
+  } catch {
+    // Ignore storage restriction
+  }
+  if (typeof BroadcastChannel !== "undefined") {
+    try {
+      const channel = new BroadcastChannel(CROSS_TAB_REFRESH_CHANNEL);
+      channel.postMessage({ type: "refreshed", at: now });
+      channel.close();
+    } catch {
+      // Ignore broadcast channel errors
+    }
+  }
+}
+
+async function runWithCrossTabRefreshLock<T>(
+  work: () => Promise<T>,
+): Promise<T> {
+  if (typeof navigator !== "undefined" && navigator.locks?.request) {
+    return navigator.locks.request(CROSS_TAB_REFRESH_LOCK_NAME, work);
+  }
+  if (typeof window === "undefined") {
+    return work();
+  }
+
+  const tabToken =
+    window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+  const waitDeadline = Date.now() + 4_000;
+  let acquired = false;
+  try {
+    while (Date.now() < waitDeadline) {
+      const rawLease = window.localStorage.getItem(CROSS_TAB_REFRESH_LEASE_KEY);
+      let leaseExpired = true;
+      if (rawLease) {
+        try {
+          const parsed = JSON.parse(rawLease) as { token?: string; expiresAt?: number };
+          leaseExpired = !parsed.expiresAt || parsed.expiresAt <= Date.now();
+        } catch {
+          leaseExpired = true;
+        }
+      }
+      if (leaseExpired) {
+        window.localStorage.setItem(
+          CROSS_TAB_REFRESH_LEASE_KEY,
+          JSON.stringify({ token: tabToken, expiresAt: Date.now() + CROSS_TAB_LEASE_TTL_MS }),
+        );
+        const verify = window.localStorage.getItem(CROSS_TAB_REFRESH_LEASE_KEY);
+        if (verify && verify.includes(tabToken)) {
+          acquired = true;
+          break;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+  } catch {
+    // Storage unavailable; proceed with in-tab single-flight mutex.
+  }
+
+  try {
+    return await work();
+  } finally {
+    if (acquired) {
+      try {
+        const current = window.localStorage.getItem(CROSS_TAB_REFRESH_LEASE_KEY);
+        if (current && current.includes(tabToken)) {
+          window.localStorage.removeItem(CROSS_TAB_REFRESH_LEASE_KEY);
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }
+}
+
+export async function recoverAuthSession(): Promise<void> {
+  if (logoutInFlight) {
+    try {
+      await logoutInFlight;
+    } catch (error) {
+      throw recoveryError(error);
+    }
+    throw new ApiError(401, "SESSION_LOGGED_OUT", "Session ended", undefined, true);
+  }
+
   if (!refreshInFlight) {
-    refreshInFlight = apiClient("/api/v1/auth/refresh", { method: "POST" })
-      .then(() => {
+    const startedAt = Date.now();
+    refreshInFlight = runWithCrossTabRefreshLock(async () => {
+      const lastRefreshAt = readLastCrossTabRefreshAt();
+      if (
+        lastRefreshAt > startedAt &&
+        Date.now() - lastRefreshAt < CROSS_TAB_RECENT_REFRESH_WINDOW_MS
+      ) {
         sessionGeneration += 1;
         syncCurrentAuthSessionCookie();
-      })
-      .finally(() => { refreshInFlight = undefined; });
+        return;
+      }
+      try {
+        await apiClient("/api/v1/auth/refresh", {
+          method: "POST",
+          skipSessionRecovery: true,
+        });
+      } catch (error) {
+        if (
+          error instanceof ApiError &&
+          error.status === 401 &&
+          error.code === "AUTH_REFRESH_CONCURRENT"
+        ) {
+          // Another tab rotated the refresh token inside the backend grace window.
+          // Yield briefly so the browser finishes persisting the sibling tab's Set-Cookie.
+          await new Promise((resolve) => setTimeout(resolve, 60));
+        } else {
+          throw error;
+        }
+      }
+      sessionGeneration += 1;
+      syncCurrentAuthSessionCookie();
+      markCrossTabRefreshSucceeded();
+    }).finally(() => {
+      refreshInFlight = undefined;
+    });
   }
   try {
     await refreshInFlight;
@@ -104,7 +400,12 @@ export function logoutSession(signal?: AbortSignal): Promise<void> {
     logoutInFlight = (async () => {
       // Rotation may replace the cookie, so logout must revoke after it settles.
       await waitForRefresh(pendingRefresh, signal);
-      await apiClient<void>("/api/v1/auth/logout", { method: "POST", signal });
+      await apiClient<void>("/api/v1/auth/logout", {
+        method: "POST",
+        signal,
+        skipSessionRecovery: true,
+      });
+      setAuthContextHint(null);
     })().finally(() => {
       logoutInFlight = undefined;
     });
@@ -115,6 +416,7 @@ export function logoutSession(signal?: AbortSignal): Promise<void> {
 
 export interface ApiRequestOptions extends RequestInit {
   onResponseHeaders?: (headers: Headers) => void;
+  skipSessionRecovery?: boolean;
 }
 
 export async function apiClient<T>(
@@ -125,51 +427,71 @@ export async function apiClient<T>(
   const normalizedEndpoint = endpoint.startsWith("/")
     ? endpoint
     : `/${endpoint}`;
+  const endpointPath = normalizedEndpoint.split("?")[0] ?? normalizedEndpoint;
   const url = normalizedEndpoint.startsWith("/api/v1/")
     ? normalizedEndpoint
     : `${baseUrl}${normalizedEndpoint}`;
 
   const headers = new Headers(options?.headers);
-  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (
+    !headers.has("Content-Type") &&
+    !shouldSkipDefaultJsonContentType(options?.body)
+  ) {
+    headers.set("Content-Type", "application/json");
+  }
   const method = (options?.method ?? "GET").toUpperCase();
   const safeMethod = ["GET", "HEAD", "OPTIONS", "TRACE"].includes(method);
   if (!safeMethod && typeof document !== "undefined") {
-    const csrfCookie = document.cookie.split(";").map((cookie) => cookie.trim())
-      .find((cookie) => cookie.startsWith("__Host-csrf="));
-    if (csrfCookie && (normalizedEndpoint === "/api/v1/auth/refresh" || !headers.has("X-CSRF-Token"))) {
-      headers.set("X-CSRF-Token", csrfCookie.slice("__Host-csrf=".length));
+    const csrfToken = getCsrfToken();
+    if (
+      csrfToken &&
+      (endpointPath === "/api/v1/auth/refresh" || !headers.has("X-CSRF-Token"))
+    ) {
+      headers.set("X-CSRF-Token", csrfToken);
     }
   }
+  if (
+    expectedOrganizationId &&
+    !headers.has("X-Expected-Organization-Id") &&
+    isOrgScopedEndpoint(endpointPath)
+  ) {
+    headers.set("X-Expected-Organization-Id", expectedOrganizationId);
+  }
 
-  const { onResponseHeaders, ...fetchOptions } = options ?? {};
+  const { onResponseHeaders, skipSessionRecovery, ...fetchOptions } = options ?? {};
   const requestOptions: RequestInit = {
     ...fetchOptions,
     headers,
     credentials: "include",
   };
   const generation = sessionGeneration;
+  const initialOrgId = expectedOrganizationId;
+  const initialUserId = activeUserIdHint;
   let response = await fetch(url, requestOptions);
   let recovered = false;
-  if (
+
+  const canAttemptRecovery =
     typeof window !== "undefined" &&
-    [
-      "/auth/me",
-      "/api/v1/auth/me",
-      "/auth/platform/me",
-      "/api/v1/auth/platform/me",
-    ].includes(normalizedEndpoint) &&
-    (options?.method ?? "GET").toUpperCase() === "GET" &&
-    response.status === 401
-  ) {
-    // Only the session probe may be replayed. Mutations never enter this flow.
-    if (logoutInFlight) {
-      try {
-        await logoutInFlight;
-      } catch (error) {
-        throw recoveryError(error);
-      }
-    } else if (generation === sessionGeneration) {
-      await recoverSession();
+    safeMethod &&
+    !logoutInFlight &&
+    !skipSessionRecovery &&
+    !AUTH_NO_RECOVERY_ENDPOINTS.has(endpointPath) &&
+    response.status === 401;
+
+  if (canAttemptRecovery) {
+    if (generation === sessionGeneration) {
+      await recoverAuthSession();
+    }
+    if (
+      logoutInFlight ||
+      expectedOrganizationId !== initialOrgId ||
+      activeUserIdHint !== initialUserId
+    ) {
+      throw new ApiError(
+        401,
+        "AUTHENTICATION_FAILED",
+        "Session or organization context changed during recovery.",
+      );
     }
     recovered = true;
     try {
@@ -203,6 +525,11 @@ export async function apiClient<T>(
     ) {
       notifyAuthSessionChanged();
     }
+    const retryAfterMs = parseRetryAfterMs(
+      typeof response.headers?.get === "function"
+        ? response.headers.get("retry-after")
+        : null,
+    );
     throw new ApiError(
       response.status,
       detail.code,
@@ -221,6 +548,7 @@ export async function apiClient<T>(
         : undefined,
       recovered,
       parsedDetails,
+      retryAfterMs,
     );
   }
 

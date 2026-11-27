@@ -44,6 +44,8 @@ import { useFloatingChatStore } from "@/stores/floating-chat";
 import {
   acquireSharedChatWsTicket,
   getChatWsCooldownRemainingMs,
+  getChatWsPolicyFailureCooldownMs,
+  recordChatWsConnectionFailure,
   resetChatWsCooldown,
   resolveChatRealtimeWsUrl,
 } from "./floating/chat-shared-helpers";
@@ -518,19 +520,33 @@ export default function ChatWorkspace() {
     if (!organizationId || !actorId || !realtimeIdentityKey) return;
     let stopped = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-    let delay = 1000;
+    let delay = 2_000;
+    let authRecheckAttempted = false;
 
     const scheduleReconnect = () => {
       if (stopped) return;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+      }
       useFloatingChatStore.getState().setRealtimeConnectedOwner(null);
       setConnection("reconnecting");
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
       const cooldown = getChatWsCooldownRemainingMs(realtimeIdentityKey);
       const waitMs = Math.max(delay + Math.random() * 400, cooldown);
-      reconnectTimer = setTimeout(() => void connect(), waitMs);
-      delay = Math.min(delay * 2, 30_000);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = undefined;
+        void connect();
+      }, waitMs);
+      delay = Math.min(delay * 2, 60_000);
     };
 
     const connect = async () => {
+      if (stopped) return;
+      if (typeof document !== "undefined" && document.hidden) return;
+      let receivedConnectedFrame = false;
       try {
         const cooldown = getChatWsCooldownRemainingMs(realtimeIdentityKey);
         if (cooldown > 0) {
@@ -545,9 +561,12 @@ export default function ChatWorkspace() {
         ]);
         socketRef.current = socket;
         socket.onopen = () => {
-          if (stopped) return socket.close();
-          resetChatWsCooldown(realtimeIdentityKey);
-          delay = 1000;
+          if (stopped) {
+            socket.close();
+            return;
+          }
+          // Wait for server "connected" frame before resetting backoff/cooldown
+          // so immediate 1008 policy/origin closes never trigger a ws-ticket storm.
         };
         socket.onmessage = (event) => {
           try {
@@ -556,6 +575,10 @@ export default function ChatWorkspace() {
               data?: unknown;
             };
             if (packet.event === "connected") {
+              receivedConnectedFrame = true;
+              resetChatWsCooldown(realtimeIdentityKey);
+              delay = 2_000;
+              authRecheckAttempted = false;
               useFloatingChatStore
                 .getState()
                 .setRealtimeConnectedOwner(realtimeIdentityKey);
@@ -839,31 +862,66 @@ export default function ChatWorkspace() {
         };
         socket.onclose = (event) => {
           if (socketRef.current === socket) socketRef.current = null;
-          if (!stopped && event.code === 1008) {
+          if (stopped) return;
+          if (!receivedConnectedFrame) {
+            recordChatWsConnectionFailure(
+              realtimeIdentityKey,
+              event.code === 1008
+                ? getChatWsPolicyFailureCooldownMs()
+                : undefined,
+            );
+          }
+          if (event.code === 1008) {
+            if (authRecheckAttempted) {
+              scheduleReconnect();
+              return;
+            }
+            authRecheckAttempted = true;
             void refreshCurrentUser().then(
               scheduleReconnect,
               scheduleReconnect,
             );
-          } else if (!stopped) {
+          } else {
             scheduleReconnect();
           }
         };
         socket.onerror = () => socket.close();
       } catch (error) {
+        if (stopped) return;
+        useFloatingChatStore.getState().setRealtimeConnectedOwner(null);
         if (error instanceof ApiError && error.status === 401) {
+          if (authRecheckAttempted) return;
+          authRecheckAttempted = true;
           try {
             await refreshCurrentUser();
           } catch {
-            // The current-user query carries the terminal authentication error.
+            return;
           }
+          if (stopped) return;
+        } else if (error instanceof ApiError && error.status === 429) {
+          delay = Math.min(Math.max(delay * 2, error.retryAfterMs ?? 15_000), 60_000);
+        } else if (
+          error instanceof ApiError &&
+          (error.status === 403 || error.status === 404)
+        ) {
+          return;
         }
         scheduleReconnect();
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (stopped || document.hidden) return;
+      if (!socketRef.current && !reconnectTimer) {
+        void connect();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     void connect();
     return () => {
       stopped = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       const store = useFloatingChatStore.getState();
       if (store.realtimeConnectedOwner === realtimeIdentityKey) {

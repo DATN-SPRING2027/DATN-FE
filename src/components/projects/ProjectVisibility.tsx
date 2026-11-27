@@ -11,6 +11,7 @@ import {
   useChangeProjectVisibility,
   useProjectVisibilityAccess,
 } from "@/lib/queries/projects/useProjectVisibility";
+import { GlobeIcon, LockIcon } from "@/icons";
 import ProjectPublicationDialog from "./ProjectPublicationDialog";
 
 export default function ProjectVisibility({ project }: { project: Project }) {
@@ -71,48 +72,9 @@ export default function ProjectVisibility({ project }: { project: Project }) {
           }}
           startIcon={
             isPrivate ? (
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 16 16"
-                fill="none"
-                className="h-3.5 w-3.5 shrink-0"
-              >
-                <circle
-                  cx="8"
-                  cy="8"
-                  r="5.75"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                />
-                <path
-                  d="M2.5 8h11M8 2.25c1.6 1.55 2.4 3.47 2.4 5.75S9.6 12.2 8 13.75c-1.6-1.55-2.4-3.47-2.4-5.75S6.4 3.8 8 2.25Z"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                />
-              </svg>
+              <GlobeIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
             ) : (
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 16 16"
-                fill="none"
-                className="h-3.5 w-3.5 shrink-0"
-              >
-                <rect
-                  x="3.25"
-                  y="7.25"
-                  width="9.5"
-                  height="6.5"
-                  rx="1.5"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                />
-                <path
-                  d="M5.25 7.25V5.25a2.75 2.75 0 1 1 5.5 0v2"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <LockIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
             )
           }
         >

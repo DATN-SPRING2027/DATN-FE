@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getCsrfToken } from "@/lib/api-client";
 import type {
   AcceptRequestDto,
   AcknowledgeRequestDto,
@@ -60,24 +60,7 @@ export function formatFollowUpEtag(
 }
 
 export function readCsrfTokenFromDocument(): string | undefined {
-  if (typeof document === "undefined" || !document.cookie) {
-    return undefined;
-  }
-  const cookies = document.cookie.split(";").map((entry) => entry.trim());
-  for (const prefix of ["__Host-csrf=", "continuum_csrf=", "csrf_token="]) {
-    const match = cookies.find((c) => c.startsWith(prefix));
-    if (match) {
-      const raw = match.slice(prefix.length).trim();
-      if (raw) {
-        try {
-          return decodeURIComponent(raw);
-        } catch {
-          return raw;
-        }
-      }
-    }
-  }
-  return undefined;
+  return getCsrfToken() ?? undefined;
 }
 
 export function canonicalizeCommandIntent(value: unknown): string { if (value === null || typeof value !== "object") return JSON.stringify(value); if (Array.isArray(value)) return `[${value.map(canonicalizeCommandIntent).join(",")}]`; const record = value as Record<string, unknown>; return `{${Object.keys(record).sort().map((k) => `${JSON.stringify(k)}:${canonicalizeCommandIntent(record[k])}`).join(",")}}`; }
@@ -165,6 +148,11 @@ export async function listHandovers(
   if (filter.cursor) query.set("cursor", filter.cursor);
   if (filter.limit !== undefined) query.set("limit", String(filter.limit));
   if (filter.participantRole) query.set("participantRole", filter.participantRole);
+  if (filter.status && filter.status !== "ALL") query.set("status", filter.status);
+  if (filter.departingUserId) query.set("departingUserId", filter.departingUserId);
+  if (filter.successorUserId) query.set("successorUserId", filter.successorUserId);
+  const trimmedSearch = filter.search?.trim();
+  if (trimmedSearch) query.set("search", trimmedSearch);
 
   const qs = query.toString();
   const response = await apiClient<HandoverListDto>(
@@ -175,7 +163,7 @@ export async function listHandovers(
     },
   );
 
-  const normalizedSearch = filter.search?.trim().toLowerCase();
+  const normalizedSearch = trimmedSearch?.toLowerCase();
   const filtered = response.data.filter((item) => {
     if (filter.status && filter.status !== "ALL" && item.status !== filter.status) {
       return false;
@@ -201,6 +189,7 @@ export async function listHandovers(
   return {
     data: filtered,
     nextCursor: response.nextCursor,
+    ...(response.summary ? { summary: response.summary } : {}),
   };
 }
 

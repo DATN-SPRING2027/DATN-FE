@@ -47,6 +47,7 @@
     "seeAll": "See all",
     "copy": "Copy to clipboard",
     "copied": "Copied",
+    "toggleTheme": "Toggle color theme",
     "localeCode": "en"
   },
   "roleLabels": {
@@ -411,7 +412,7 @@
       "health": "IAM health could not be checked.",
       "audit": "Audit activity could not be loaded.",
       "organizationConflict": "This organization changed or its slug is already in use. Refresh the details and review the latest information before retrying.",
-      "operatorCannotBeFirstAdmin": "Platform operator accounts cannot be assigned as the initial Organization Manager. Select another active user account.",
+      "operatorCannotBeFirstAdmin": "Admin accounts cannot be assigned as the initial Organization Manager. Select another active user account.",
       "organizationSlugConflict": "This organization slug is already in use. Choose a different slug and try again."
     },
     "noCapabilities": {
@@ -1342,6 +1343,11 @@
   },
   "auth": {
     "forgotPasswordLink": "Forgot password?",
+    "targetAddress": "Target address:",
+    "transitionAriaLabel": "Opening {organizationName} workspace",
+    "transitionEyebrow": "YOUR KNOWLEDGE, CONNECTED",
+    "transitionReady": "Workspace ready",
+    "transitionConnecting": "Connecting workspace",
     "forgotPasswordTitle": "Reset your password",
     "forgotPasswordDescription": "Enter the email address on your account and we’ll send reset instructions if it is eligible.",
     "email": "Email",
@@ -2650,6 +2656,7 @@
       "TODO": "To do",
       "IN_PROGRESS": "In progress",
       "IN_REVIEW": "In review",
+      "BLOCKED": "Blocked",
       "DONE": "Done"
     },
     "priorities": {
@@ -3645,7 +3652,7 @@
       "memberRequestCta": "Request document upload",
       "uploadActiveBadge": "Uploading {done}/{total} · {percent}%",
       "leaderUploadModalTitle": "Upload project documents",
-      "leaderUploadModalSubtitle": "Files added here are approved immediately and queued into this project's processing pipeline.",
+      "leaderUploadModalSubtitle": "Files added here are submitted for review. Approved files enter the project's processing pipeline.",
       "memberRequestModalTitle": "Request document upload",
       "memberRequestModalSubtitle": "Submit files to the Project Leader for review. Processing starts automatically once approved.",
       "dropzonePromptLead": "Drop files here, or",
@@ -3702,7 +3709,7 @@
       "uploaderNoteHeading": "Uploader note",
       "uploadNewVersionCta": "Upload new version",
       "uploadNewVersionTitleLeader": "Upload new version (v{version})",
-      "uploadNewVersionSubtitleLeader": "Replace the current file with version v{version} and re-index automatically.",
+      "uploadNewVersionSubtitleLeader": "Upload version v{version} and send it for review before indexing.",
       "uploadNewVersionTitleMember": "Request new version (v{version})",
       "uploadNewVersionSubtitleMember": "Submit an updated file (v{version}) to the Project Leader for approval.",
       "uploadNewVersionSubmitLeader": "Upload v{version}",
@@ -6327,6 +6334,9 @@
       "coordinatorReasonLabel": "Appointment reason",
       "coordinatorReasonPlaceholder": "Document governance reason for appointing Coordinator (D)…",
       "coordinatorSafeReceiptSuccess": "Coordinator updated (Handover v{version}, status {status}). Confidential package contents remain scoped to authorized project roles.",
+      "coordinatorInvalidIdVersion": "Provide a valid Handover ID and integer version (>= 1).",
+      "coordinatorMissingFields": "Select a Project Leader and enter an appointment reason.",
+      "coordinatorUpdateFailed": "Coordinator update failed.",
       "saveCoordinator": "Confirm Coordinator",
       "completeModalTitle": "Complete Knowledge Handover",
       "completeModalDesc": "Completing freezes the handover snapshot permanently. All required items must be understood with accepted evidence, and any unresolved optional gaps must have explicit follow-up exceptions.",

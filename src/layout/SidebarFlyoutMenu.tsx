@@ -339,7 +339,7 @@ export function SidebarFlyoutPortal({
       {/* Invisible Hover Bridge on the left edge so diagonal/horizontal cursor crossings never drop hover */}
       <div
         aria-hidden="true"
-        className="absolute inset-y-0 -left-3 w-3 bg-transparent"
+        className="absolute inset-y-0 -start-3 w-3 bg-transparent"
       />
 
       {/* Flyout Header */}
@@ -385,7 +385,7 @@ export function SidebarFlyoutPortal({
           ) : (
             <ul
               aria-label={tr(t, "flyout.recentActiveProjects", "Recent active projects")}
-              className="max-h-72 space-y-1 overflow-y-auto pr-0.5"
+              className="max-h-72 space-y-1 overflow-y-auto pe-0.5"
             >
               {projects.slice(0, 6).map((project) => {
                 const detailHref = `/projects/${encodeURIComponent(project.id)}`;

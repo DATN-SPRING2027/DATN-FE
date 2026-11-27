@@ -4,6 +4,9 @@ import {
   teamDevelopmentEnabled,
   teamFixturePreviewEnabled,
 } from "./teams-development";
+vi.mock("next-intl/server", () => ({
+  setRequestLocale: vi.fn(),
+}));
 vi.mock("@/i18n/navigation", () => ({
   redirect: ({ href, locale }: { href: string; locale: string }) => {
     throw new Error(`REDIRECT:${locale}:${href}`);

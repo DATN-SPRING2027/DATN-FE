@@ -1,12 +1,15 @@
 "use client";
 
 import {
+  memo,
   Suspense,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -214,6 +217,104 @@ function WorkspaceLoadingSkeleton({ label }: { label: string }) {
   );
 }
 
+type AiChatComposerHandle = Readonly<{
+  setValue: (nextValue: string) => void;
+  focus: () => void;
+}>;
+
+interface AiChatComposerSectionProps {
+  controllerRef: RefObject<AiChatComposerHandle | null>;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  projects: readonly Project[];
+  isStreaming: boolean;
+  disabled: boolean;
+  validationError: string | null;
+  isProjectMenuOpen: boolean;
+  onProjectMenuOpenChange: (nextOpen: boolean) => void;
+  onSelectProject: (project: Project) => void;
+  onClearValidationError: () => void;
+  onSubmitQuery: (query: string) => void;
+  onStopStreaming: () => void;
+  totalSourceCount: number | null;
+  onOpenSources: () => void;
+}
+
+const AiChatComposerSection = memo(function AiChatComposerSection({
+  controllerRef,
+  projectId,
+  projectCode,
+  projectName,
+  projects,
+  isStreaming,
+  disabled,
+  validationError,
+  isProjectMenuOpen,
+  onProjectMenuOpenChange,
+  onSelectProject,
+  onClearValidationError,
+  onSubmitQuery,
+  onStopStreaming,
+  totalSourceCount,
+  onOpenSources,
+}: AiChatComposerSectionProps) {
+  const [composerValue, setComposerValue] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hasValidationError = Boolean(validationError);
+
+  useImperativeHandle(
+    controllerRef,
+    () => ({
+      setValue: (nextValue: string) => {
+        setComposerValue(nextValue);
+      },
+      focus: () => {
+        textareaRef.current?.focus();
+      },
+    }),
+    [],
+  );
+
+  const handleChange = useCallback(
+    (next: string) => {
+      setComposerValue(next);
+      if (hasValidationError) {
+        onClearValidationError();
+      }
+    },
+    [hasValidationError, onClearValidationError],
+  );
+
+  const handleSubmit = useCallback(() => {
+    onSubmitQuery(composerValue);
+  }, [composerValue, onSubmitQuery]);
+
+  return (
+    <AiChatComposer
+      variant="docked"
+      mode="chat"
+      value={composerValue}
+      inputRef={textareaRef}
+      projectId={projectId}
+      projectCode={projectCode}
+      projectName={projectName}
+      projects={projects}
+      isStreaming={isStreaming}
+      disabled={disabled}
+      validationError={validationError}
+      isProjectMenuOpen={isProjectMenuOpen}
+      onProjectMenuOpenChange={onProjectMenuOpenChange}
+      onSelectProject={onSelectProject}
+      onChange={handleChange}
+      onSubmit={handleSubmit}
+      onStopStreaming={onStopStreaming}
+      totalSourceCount={totalSourceCount}
+      onOpenSources={onOpenSources}
+    />
+  );
+});
+
 function AiChatWorkspaceContent() {
   const t = useTranslations("AiChat");
   const tPage = useTranslations("pageTitles");
@@ -283,8 +384,9 @@ function AiChatWorkspaceContent() {
   }, [projects, selectableProjects, manualProjectId, urlProjectId]);
 
   const projectId = selectedProject?.id ?? "";
-  const pinnedStorageKey = `continuum.aiChat.pinned.${organizationId}.${projectId}`;
-  const activeThreadStorageKey = `continuum.aiChat.activeThread.${organizationId}.${projectId}`;
+  const userScopeSegment = userId || "anon";
+  const pinnedStorageKey = `continuum.aiChat.pinned.${userScopeSegment}.${organizationId}.${projectId}`;
+  const activeThreadStorageKey = `continuum.aiChat.activeThread.${userScopeSegment}.${organizationId}.${projectId}`;
 
   const [activeThreadByScope, setActiveThreadByScope] = useState<
     Record<string, string | null>
@@ -301,7 +403,6 @@ function AiChatWorkspaceContent() {
     Record<string, readonly string[]>
   >({});
 
-  const [composerValue, setComposerValue] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [permissionBanner, setPermissionBanner] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -345,21 +446,29 @@ function AiChatWorkspaceContent() {
   const [taskNoteSavedNotice, setTaskNoteSavedNotice] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const deltaRafIdRef = useRef<number | null>(null);
   const branchNavEpochRef = useRef(0);
-  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const composerControllerRef = useRef<AiChatComposerHandle | null>(null);
   const engineMenuRef = useRef<HTMLDivElement | null>(null);
   const projectMenuRef = useRef<HTMLDivElement | null>(null);
 
+  const cancelScheduledDeltaRaf = useCallback(() => {
+    if (deltaRafIdRef.current !== null && typeof window !== "undefined") {
+      window.cancelAnimationFrame(deltaRafIdRef.current);
+      deltaRafIdRef.current = null;
+    }
+  }, []);
+
   const pinnedThreadIds = useMemo(() => {
-    if (!organizationId || !projectId) return new Set<string>();
+    if (!userId || !organizationId || !projectId) return new Set<string>();
     const override = pinnedIdsByScope[pinnedStorageKey];
     const ids = override ?? readPinnedThreadsFromStorage(pinnedStorageKey);
     return new Set(ids);
-  }, [organizationId, pinnedIdsByScope, pinnedStorageKey, projectId]);
+  }, [organizationId, pinnedIdsByScope, pinnedStorageKey, projectId, userId]);
 
   const handleTogglePinThread = useCallback(
     (threadId: string) => {
-      if (!organizationId || !projectId) return;
+      if (!userId || !organizationId || !projectId) return;
       setPinnedIdsByScope((prev) => {
         const current =
           prev[pinnedStorageKey] ??
@@ -372,14 +481,15 @@ function AiChatWorkspaceContent() {
         return { ...prev, [pinnedStorageKey]: next };
       });
     },
-    [organizationId, pinnedStorageKey, projectId],
+    [organizationId, pinnedStorageKey, projectId, userId],
   );
 
   useEffect(() => {
     return () => {
+      cancelScheduledDeltaRaf();
       abortControllerRef.current?.abort();
     };
-  }, []);
+  }, [cancelScheduledDeltaRaf]);
 
   useEffect(() => {
     if (!isProjectMenuOpen && !isEngineMenuOpen) return;
@@ -485,18 +595,18 @@ function AiChatWorkspaceContent() {
 
   const setActiveThreadId = useCallback(
     (nextThreadId: string | null, targetScopeKey = activeThreadStorageKey) => {
-      if (!organizationId || !projectId) return;
+      if (!userId || !organizationId || !projectId) return;
       writeActiveThreadToStorage(targetScopeKey, nextThreadId);
       setActiveThreadByScope((prev) => ({
         ...prev,
         [targetScopeKey]: nextThreadId,
       }));
     },
-    [activeThreadStorageKey, organizationId, projectId],
+    [activeThreadStorageKey, organizationId, projectId, userId],
   );
 
   const activeThreadId: string | null = useMemo(() => {
-    if (!organizationId || !projectId) return null;
+    if (!userId || !organizationId || !projectId) return null;
     if (
       Object.prototype.hasOwnProperty.call(
         activeThreadByScope,
@@ -524,6 +634,7 @@ function AiChatWorkspaceContent() {
     projectId,
     threadsQuery.data,
     threadsQuery.isLoading,
+    userId,
   ]);
 
   const activeThread: AiChatThread | null = useMemo(() => {
@@ -634,13 +745,14 @@ function AiChatWorkspaceContent() {
   const handleSelectProject = useCallback(
     (project: Project) => {
       branchNavEpochRef.current += 1;
+      cancelScheduledDeltaRaf();
       abortControllerRef.current?.abort();
       abortControllerRef.current = null;
       setIsStreaming(false);
       setManualProjectId(project.id);
       setActiveThreadId(
         null,
-        `continuum.aiChat.activeThread.${organizationId}.${project.id}`,
+        `continuum.aiChat.activeThread.${userScopeSegment}.${organizationId}.${project.id}`,
       );
       setBranchNotice(null);
       setBranchingMessageId(null);
@@ -658,11 +770,20 @@ function AiChatWorkspaceContent() {
       nextParams.set("projectId", project.id);
       router.replace(`${pathname}?${nextParams.toString()}`);
     },
-    [organizationId, pathname, router, searchParams, setActiveThreadId],
+    [
+      cancelScheduledDeltaRaf,
+      organizationId,
+      pathname,
+      router,
+      searchParams,
+      setActiveThreadId,
+      userScopeSegment,
+    ],
   );
 
   const handleStartNewChat = useCallback(() => {
     branchNavEpochRef.current += 1;
+    cancelScheduledDeltaRaf();
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setIsStreaming(false);
@@ -675,11 +796,12 @@ function AiChatWorkspaceContent() {
     setIsEngineMenuOpen(false);
     setIsProjectMenuOpen(false);
     setIsComposerProjectMenuOpen(false);
-  }, [setActiveThreadId]);
+  }, [cancelScheduledDeltaRaf, setActiveThreadId]);
 
   const handleSelectThread = useCallback(
     (threadId: string) => {
       branchNavEpochRef.current += 1;
+      cancelScheduledDeltaRaf();
       abortControllerRef.current?.abort();
       abortControllerRef.current = null;
       setIsStreaming(false);
@@ -689,7 +811,7 @@ function AiChatWorkspaceContent() {
       setPermissionBanner(null);
       setHighlightedTurnId(null);
     },
-    [setActiveThreadId],
+    [cancelScheduledDeltaRaf, setActiveThreadId],
   );
 
   const handleRenameThread = useCallback(
@@ -763,6 +885,7 @@ function AiChatWorkspaceContent() {
         });
       }
       if (activeThreadId === threadId) {
+        cancelScheduledDeltaRaf();
         abortControllerRef.current?.abort();
         abortControllerRef.current = null;
         setIsStreaming(false);
@@ -771,6 +894,7 @@ function AiChatWorkspaceContent() {
     },
     [
       activeThreadId,
+      cancelScheduledDeltaRaf,
       deleteThreadMutation,
       organizationId,
       pinnedStorageKey,
@@ -780,10 +904,11 @@ function AiChatWorkspaceContent() {
   );
 
   const handleStopStreaming = useCallback(() => {
+    cancelScheduledDeltaRaf();
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setIsStreaming(false);
-  }, []);
+  }, [cancelScheduledDeltaRaf]);
 
   const updateLocalTurn = useCallback(
     (
@@ -882,11 +1007,12 @@ function AiChatWorkspaceContent() {
 
       const requestProjectId = selectedProject.id;
       const controller = new AbortController();
+      cancelScheduledDeltaRaf();
       abortControllerRef.current = controller;
       setIsStreaming(true);
       setValidationError(null);
       setPermissionBanner(null);
-      setComposerValue("");
+      composerControllerRef.current?.setValue("");
 
       try {
         let targetThreadId = activeThreadId;
@@ -911,7 +1037,7 @@ function AiChatWorkspaceContent() {
             ) {
               return;
             }
-            setComposerValue(rawQuery);
+            composerControllerRef.current?.setValue(rawQuery);
             if (isProjectOrAuthAccessError(error)) {
               if (error.status === 401) {
                 revalidateCurrentUserSession(queryClient);
@@ -982,6 +1108,53 @@ function AiChatWorkspaceContent() {
         let activeUserTurnId = tempUserTurnId;
         let activeAssistantTurnId = tempAssistantTurnId;
         let collectedSteps: AiChatRetrievalStep[] = [];
+        let pendingDeltaText = "";
+        let localDeltaRafId: number | null = null;
+
+        const flushPendingDelta = () => {
+          if (localDeltaRafId !== null && typeof window !== "undefined") {
+            window.cancelAnimationFrame(localDeltaRafId);
+            if (deltaRafIdRef.current === localDeltaRafId) {
+              deltaRafIdRef.current = null;
+            }
+            localDeltaRafId = null;
+          }
+          if (!pendingDeltaText) return;
+          const chunk = pendingDeltaText;
+          pendingDeltaText = "";
+          updateLocalTurn(targetThreadId, activeAssistantTurnId, (turn) => ({
+            ...turn,
+            content: `${turn.content}${chunk}`,
+          }));
+        };
+
+        const enqueueDelta = (text: string) => {
+          if (!text) return;
+          pendingDeltaText += text;
+          if (localDeltaRafId !== null) return;
+          if (
+            typeof window === "undefined" ||
+            typeof window.requestAnimationFrame !== "function"
+          ) {
+            flushPendingDelta();
+            return;
+          }
+          localDeltaRafId = window.requestAnimationFrame(() => {
+            if (deltaRafIdRef.current === localDeltaRafId) {
+              deltaRafIdRef.current = null;
+            }
+            localDeltaRafId = null;
+            if (
+              controller.signal.aborted ||
+              abortControllerRef.current !== controller
+            ) {
+              pendingDeltaText = "";
+              return;
+            }
+            flushPendingDelta();
+          });
+          deltaRafIdRef.current = localDeltaRafId;
+        };
 
         try {
           await streamAiChatAsk({
@@ -1028,18 +1201,12 @@ function AiChatWorkspaceContent() {
               }
 
               if (event.event === "delta") {
-                updateLocalTurn(
-                  targetThreadId,
-                  activeAssistantTurnId,
-                  (turn) => ({
-                    ...turn,
-                    content: `${turn.content}${event.data.text}`,
-                  }),
-                );
+                enqueueDelta(event.data.text);
                 return;
               }
 
               if (event.event === "completed") {
+                flushPendingDelta();
                 const finalId = event.data.messageId || activeAssistantTurnId;
                 const finishedAt = Date.now();
                 const resolvedSteps =
@@ -1099,6 +1266,7 @@ function AiChatWorkspaceContent() {
               }
 
               if (event.event === "failed") {
+                flushPendingDelta();
                 const failedId = event.data.messageId || activeAssistantTurnId;
                 updateLocalTurn(
                   targetThreadId,
@@ -1122,6 +1290,7 @@ function AiChatWorkspaceContent() {
               }
             },
           });
+          flushPendingDelta();
 
           const messagesKey = aiChatKeys.messages(
             organizationId,
@@ -1163,6 +1332,7 @@ function AiChatWorkspaceContent() {
             }
           }
         } catch (error) {
+          flushPendingDelta();
           if (isAbortError(error) || controller.signal.aborted) {
             updateLocalTurn(targetThreadId, activeAssistantTurnId, (turn) => ({
               ...turn,
@@ -1223,6 +1393,7 @@ function AiChatWorkspaceContent() {
     },
     [
       activeThreadId,
+      cancelScheduledDeltaRaf,
       createThreadMutation,
       isStreaming,
       organizationId,
@@ -1253,6 +1424,7 @@ function AiChatWorkspaceContent() {
       const requestProjectId = selectedProject.id;
       const targetThreadId = activeThreadId;
       const controller = new AbortController();
+      cancelScheduledDeltaRaf();
       abortControllerRef.current = controller;
       setIsStreaming(true);
       setValidationError(null);
@@ -1296,6 +1468,53 @@ function AiChatWorkspaceContent() {
 
       let activeRegenTurnId = tempRegenId;
       let collectedSteps: AiChatRetrievalStep[] = [];
+      let pendingDeltaText = "";
+      let localDeltaRafId: number | null = null;
+
+      const flushPendingDelta = () => {
+        if (localDeltaRafId !== null && typeof window !== "undefined") {
+          window.cancelAnimationFrame(localDeltaRafId);
+          if (deltaRafIdRef.current === localDeltaRafId) {
+            deltaRafIdRef.current = null;
+          }
+          localDeltaRafId = null;
+        }
+        if (!pendingDeltaText) return;
+        const chunk = pendingDeltaText;
+        pendingDeltaText = "";
+        updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
+          ...turn,
+          content: `${turn.content}${chunk}`,
+        }));
+      };
+
+      const enqueueDelta = (text: string) => {
+        if (!text) return;
+        pendingDeltaText += text;
+        if (localDeltaRafId !== null) return;
+        if (
+          typeof window === "undefined" ||
+          typeof window.requestAnimationFrame !== "function"
+        ) {
+          flushPendingDelta();
+          return;
+        }
+        localDeltaRafId = window.requestAnimationFrame(() => {
+          if (deltaRafIdRef.current === localDeltaRafId) {
+            deltaRafIdRef.current = null;
+          }
+          localDeltaRafId = null;
+          if (
+            controller.signal.aborted ||
+            abortControllerRef.current !== controller
+          ) {
+            pendingDeltaText = "";
+            return;
+          }
+          flushPendingDelta();
+        });
+        deltaRafIdRef.current = localDeltaRafId;
+      };
 
       try {
         await streamAiChatRegenerate({
@@ -1325,14 +1544,12 @@ function AiChatWorkspaceContent() {
             }
 
             if (event.event === "delta") {
-              updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
-                ...turn,
-                content: `${turn.content}${event.data.text}`,
-              }));
+              enqueueDelta(event.data.text);
               return;
             }
 
             if (event.event === "completed") {
+              flushPendingDelta();
               const finalId = event.data.messageId || activeRegenTurnId;
               const finishedAt = Date.now();
               const resolvedSteps =
@@ -1385,6 +1602,7 @@ function AiChatWorkspaceContent() {
             }
 
             if (event.event === "failed") {
+              flushPendingDelta();
               const failedId = event.data.messageId || activeRegenTurnId;
               updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
                 ...turn,
@@ -1411,6 +1629,7 @@ function AiChatWorkspaceContent() {
             }
           },
         });
+        flushPendingDelta();
 
         const messagesKey = aiChatKeys.messages(
           organizationId,
@@ -1452,6 +1671,7 @@ function AiChatWorkspaceContent() {
           }
         }
       } catch (error) {
+        flushPendingDelta();
         if (error instanceof ApiError && error.status === 409) {
           setLocalTurnsByThread((prev) => ({
             ...prev,
@@ -1523,6 +1743,7 @@ function AiChatWorkspaceContent() {
     },
     [
       activeThreadId,
+      cancelScheduledDeltaRaf,
       isStreaming,
       organizationId,
       queryClient,
@@ -1577,7 +1798,7 @@ function AiChatWorkspaceContent() {
         });
         if (typeof window !== "undefined") {
           window.requestAnimationFrame(() => {
-            composerTextareaRef.current?.focus();
+            composerControllerRef.current?.focus();
           });
         }
       } catch (error) {
@@ -1643,6 +1864,88 @@ function AiChatWorkspaceContent() {
       } else {
         setInspectedEvidence({ kind: "session", sessionCitation: fallback });
       }
+    },
+    [],
+  );
+
+  const handleClearValidationError = useCallback(() => {
+    setValidationError(null);
+  }, []);
+
+  const handleSubmitQuery = useCallback(
+    (query: string) => {
+      void sendQuestion(query);
+    },
+    [sendQuestion],
+  );
+
+  const handleComposerProjectMenuOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) {
+        setIsProjectMenuOpen(false);
+        setIsEngineMenuOpen(false);
+      }
+      setIsComposerProjectMenuOpen(nextOpen);
+    },
+    [],
+  );
+
+  const handleOpenSources = useCallback(() => {
+    setIsMindMapOpen(false);
+    setIsSourcesOpen(true);
+    if (typeof window !== "undefined" && window.innerWidth < 1536) {
+      setIsDesktopSidebarOpen(false);
+    }
+  }, []);
+
+  const handleLoadOlderMessages = useCallback(() => {
+    void messagesQuery.fetchNextPage();
+  }, [messagesQuery]);
+
+  const handleRetryMessages = useCallback(() => {
+    void messagesQuery.refetch();
+  }, [messagesQuery]);
+
+  const handleRegenerateMessageCallback = useCallback(
+    (msg: DisplayAiChatMessage, qMsg?: DisplayAiChatMessage) => {
+      void regenerateAnswer(msg, qMsg);
+    },
+    [regenerateAnswer],
+  );
+
+  const handleBranchFromMessageCallback = useCallback(
+    (msg: DisplayAiChatMessage) => {
+      void handleBranchFromMessage(msg);
+    },
+    [handleBranchFromMessage],
+  );
+
+  const handleSaveAnswerToTaskNoteCallback = useCallback(
+    (message: AiChatMessage, questionText: string, threadId: string) => {
+      if (!selectedProject || selectedProject.id === AI_CHAT_ALL_PROJECTS_ID) {
+        return;
+      }
+      setTaskNoteSaveTarget({
+        projectId: selectedProject.id,
+        threadId,
+        message,
+        questionText,
+      });
+    },
+    [selectedProject],
+  );
+
+  const handleSelectParentThreadCallback = useCallback(
+    (parentId: string) => {
+      setBranchNotice(null);
+      handleSelectThread(parentId);
+    },
+    [handleSelectThread],
+  );
+
+  const handleInspectEvidenceCallback = useCallback(
+    (evidence: InspectedEvidence) => {
+      setInspectedEvidence(evidence);
     },
     [],
   );
@@ -2177,38 +2480,24 @@ function AiChatWorkspaceContent() {
             hasOlderMessages={Boolean(messagesQuery.hasNextPage)}
             isLoadingOlder={messagesQuery.isFetchingNextPage}
             highlightedTurnId={highlightedTurnId}
-            onLoadOlder={() => void messagesQuery.fetchNextPage()}
-            onRetryMessages={() => void messagesQuery.refetch()}
-            onRetryTurn={(queryText) => void sendQuestion(queryText)}
-            onRegenerateMessage={(msg, qMsg) =>
-              void regenerateAnswer(msg, qMsg)
-            }
-            onBranchFromMessage={(msg) => void handleBranchFromMessage(msg)}
+            onLoadOlder={handleLoadOlderMessages}
+            onRetryMessages={handleRetryMessages}
+            onRetryTurn={handleSubmitQuery}
+            onRegenerateMessage={handleRegenerateMessageCallback}
+            onBranchFromMessage={handleBranchFromMessageCallback}
             onSaveAnswerToTaskNote={
               selectedProject.id === AI_CHAT_ALL_PROJECTS_ID
                 ? undefined
-                : (message, questionText, threadId) =>
-                    setTaskNoteSaveTarget({
-                      projectId: selectedProject.id,
-                      threadId,
-                      message,
-                      questionText,
-                    })
+                : handleSaveAnswerToTaskNoteCallback
             }
-            onSelectParentThread={(parentId) => {
-              setBranchNotice(null);
-              handleSelectThread(parentId);
-            }}
-            onInspectEvidence={(evidence) => setInspectedEvidence(evidence)}
+            onSelectParentThread={handleSelectParentThreadCallback}
+            onInspectEvidence={handleInspectEvidenceCallback}
             onJumpToTurn={handleJumpToTurn}
           />
         )}
 
-        <AiChatComposer
-          variant="docked"
-          mode="chat"
-          value={composerValue}
-          inputRef={composerTextareaRef}
+        <AiChatComposerSection
+          controllerRef={composerControllerRef}
           projectId={selectedProject.id}
           projectCode={selectedProject.code}
           projectName={selectedProject.name}
@@ -2217,32 +2506,17 @@ function AiChatWorkspaceContent() {
           disabled={Boolean(queryAccessError)}
           validationError={validationError}
           isProjectMenuOpen={isComposerProjectMenuOpen}
-          onProjectMenuOpenChange={(nextOpen) => {
-            if (nextOpen) {
-              setIsProjectMenuOpen(false);
-              setIsEngineMenuOpen(false);
-            }
-            setIsComposerProjectMenuOpen(nextOpen);
-          }}
+          onProjectMenuOpenChange={handleComposerProjectMenuOpenChange}
           onSelectProject={handleSelectProject}
-          onChange={(next) => {
-            setComposerValue(next);
-            if (validationError) setValidationError(null);
-          }}
-          onSubmit={() => void sendQuestion(composerValue)}
+          onClearValidationError={handleClearValidationError}
+          onSubmitQuery={handleSubmitQuery}
           onStopStreaming={handleStopStreaming}
           totalSourceCount={
             projectSourcesAccessDenied
               ? null
               : (projectSourcesSummaryQuery.data?.summary.totalCount ?? null)
           }
-          onOpenSources={() => {
-            setIsMindMapOpen(false);
-            setIsSourcesOpen(true);
-            if (typeof window !== "undefined" && window.innerWidth < 1536) {
-              setIsDesktopSidebarOpen(false);
-            }
-          }}
+          onOpenSources={handleOpenSources}
         />
       </div>
 
@@ -2266,13 +2540,13 @@ function AiChatWorkspaceContent() {
           projectName={selectedProject.name}
           isChatBusy={isStreaming}
           onClose={() => setIsMindMapOpen(false)}
-          onInspectEvidence={(evidence) => setInspectedEvidence(evidence)}
+          onInspectEvidence={handleInspectEvidenceCallback}
           onAskBranch={(prompt) => {
             if (typeof window !== "undefined" && window.innerWidth < 1280) {
               setIsMindMapOpen(false);
             }
             if (isStreaming) {
-              setComposerValue(prompt);
+              composerControllerRef.current?.setValue(prompt);
               return;
             }
             void sendQuestion(prompt);
@@ -2284,6 +2558,8 @@ function AiChatWorkspaceContent() {
       <AiChatEvidenceSheet
         evidence={inspectedEvidence}
         projectId={selectedProject.id}
+        userId={userId}
+        organizationId={organizationId}
         sessionPreviewText={
           inspectedEvidence?.kind === "session"
             ? resolveSessionCitationPreview(

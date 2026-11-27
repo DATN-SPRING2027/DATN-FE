@@ -2,7 +2,15 @@
 
 import { useSidebar } from "@/context/SidebarContext";
 import { Link } from "@/i18n/navigation";
-import { ChatIcon, DocsIcon, FolderIcon, PlugInIcon, SearchIcon } from "@/icons";
+import {
+  ChatIcon,
+  CloseIcon,
+  DocsIcon,
+  FolderIcon,
+  HelpCircleIcon,
+  PlugInIcon,
+  SearchIcon,
+} from "@/icons";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
@@ -127,21 +135,7 @@ export default function HeaderHelpDrawer() {
             : "border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
         )}
       >
-        <svg
-          aria-hidden="true"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="12" cy="12" r="9" />
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-          <path d="M12 17h.01" />
-        </svg>
+        <HelpCircleIcon aria-hidden="true" className="size-5 shrink-0" />
       </button>
 
       {isOpen && (
@@ -160,20 +154,7 @@ export default function HeaderHelpDrawer() {
               aria-label={t("helpDrawer.close")}
               className="inset-e-3 absolute top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
             >
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
+              <CloseIcon aria-hidden="true" className="size-4 shrink-0" />
             </button>
           </div>
 

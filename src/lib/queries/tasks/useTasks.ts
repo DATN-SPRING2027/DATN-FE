@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getCsrfToken } from "@/lib/api-client";
 
 export type BackendTaskStatus =
   | "TODO"
@@ -243,27 +243,6 @@ export const taskKeys = {
     ["tasks", "organization", "summary", cursor ?? "first"] as const,
 };
 
-function resolveCsrfToken(): string {
-  if (typeof document !== "undefined") {
-    const cookies = document.cookie.split(";").map((c) => c.trim());
-    for (const prefix of [
-      "__Host-csrf=",
-      "continuum_csrf=",
-      "csrf_token=",
-    ]) {
-      const match = cookies.find((c) => c.startsWith(prefix));
-      if (match) {
-        try {
-          return decodeURIComponent(match.slice(prefix.length));
-        } catch {
-          return match.slice(prefix.length);
-        }
-      }
-    }
-  }
-  return "continuum-workspace-csrf-token";
-}
-
 function generateIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -280,9 +259,11 @@ function buildMutationHeaders(options?: {
   idempotencyKey?: string;
   requireIdempotency?: boolean;
 }): Record<string, string> {
-  const headers: Record<string, string> = {
-    "X-CSRF-Token": resolveCsrfToken(),
-  };
+  const headers: Record<string, string> = {};
+  const csrfToken = getCsrfToken();
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
   if (options?.ifMatch) {
     headers["If-Match"] = options.ifMatch;
   }
@@ -479,11 +460,12 @@ export async function fetchAllTaskComments(
   let afterId: string | null = null;
   let guard = 0;
   do {
+    if (signal?.aborted) break;
     const res = await fetchTaskComments(projectId, taskId, signal, afterId);
     all.push(...res.items);
     afterId = res.nextAfterId ?? null;
     guard += 1;
-  } while (afterId && guard < 25);
+  } while (afterId && guard < 10 && !signal?.aborted);
   return all;
 }
 
@@ -529,6 +511,7 @@ export async function fetchAllTaskWorklogs(
   let afterId: string | null = null;
   let guard = 0;
   do {
+    if (signal?.aborted) break;
     const res = await fetchTaskWorklogs(projectId, taskId, signal, afterId);
     all.push(...res.items);
     if (guard === 0) {
@@ -536,7 +519,7 @@ export async function fetchAllTaskWorklogs(
     }
     afterId = res.nextAfterId ?? null;
     guard += 1;
-  } while (afterId && guard < 25);
+  } while (afterId && guard < 10 && !signal?.aborted);
   return { items: all, totalMinutes, nextAfterId: null };
 }
 
@@ -580,11 +563,12 @@ export async function fetchAllTaskHistory(
   let page = 1;
   let hasNext = false;
   do {
+    if (signal?.aborted) break;
     const res = await fetchTaskHistory(projectId, taskId, page, 50, signal);
     all.push(...res.data);
     hasNext = Boolean(res.pagination?.hasNext);
     page += 1;
-  } while (hasNext && page <= 20);
+  } while (hasNext && page <= 10 && !signal?.aborted);
   return all;
 }
 
@@ -718,8 +702,8 @@ export function useProjectTasksQuery(
     queryFn: ({ signal }) => fetchProjectTasks(projectId, filters, signal),
     enabled: Boolean(projectId) && /^[0-9a-f]{24}$/i.test(projectId),
     retry: false,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 20_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -729,7 +713,8 @@ export function useProjectSprintsQuery(projectId: string) {
     queryFn: ({ signal }) => fetchProjectSprints(projectId, undefined, signal),
     enabled: Boolean(projectId) && /^[0-9a-f]{24}$/i.test(projectId),
     retry: false,
-    staleTime: 0,
+    staleTime: 20_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -739,7 +724,8 @@ export function useProjectTaskSummaryQuery(projectId: string) {
     queryFn: ({ signal }) => fetchProjectTaskSummary(projectId, signal),
     enabled: Boolean(projectId) && /^[0-9a-f]{24}$/i.test(projectId),
     retry: false,
-    staleTime: 0,
+    staleTime: 20_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -752,7 +738,8 @@ export function useOrganizationTasksQuery(
     queryFn: ({ signal }) => fetchOrganizationTasks(filters, signal),
     enabled,
     retry: false,
-    staleTime: 0,
+    staleTime: 20_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -765,7 +752,8 @@ export function useOrganizationTaskSummaryQuery(
     queryFn: ({ signal }) => fetchOrganizationTaskSummary(cursor, signal),
     enabled,
     retry: false,
-    staleTime: 0,
+    staleTime: 20_000,
+    refetchOnWindowFocus: false,
   });
 }
 

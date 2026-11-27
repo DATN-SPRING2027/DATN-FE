@@ -1,21 +1,36 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import BrandLogo from "@/components/common/BrandLogo";
 import LanguageTogglePill from "@/components/common/LanguageTogglePill";
 import WorkspaceLink from "../rylo/WorkspaceLink";
 import UserDropdown from "@/components/header/UserDropdown";
+import { hasClientSessionHint } from "@/lib/api-client";
 import { useSignInSessionQuery } from "@/lib/queries/auth/useSharedSignIn";
 import styles from "./scotch.module.css";
 
-export default function ScotchNavigation() {
+const subscribeNoop = () => () => undefined;
+
+export default function ScotchNavigation({
+  hasSessionCookie = false,
+}: {
+  hasSessionCookie?: boolean;
+} = {}) {
   const t = useTranslations("landingScotch");
   const common = useTranslations("landingRylo");
   const [open, setOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
-  const session = useSignInSessionQuery();
+  const hasSessionHint = useSyncExternalStore(
+    subscribeNoop,
+    hasClientSessionHint,
+    () => hasSessionCookie,
+  );
+  const shouldProbeSession = hasSessionCookie || hasSessionHint;
+  const session = useSignInSessionQuery({ enabled: shouldProbeSession });
+  const isCheckingSession =
+    session.isLoading || (session.isPending && session.fetchStatus !== "idle");
   const isAuthenticated = Boolean(session.data);
   const links = [
     ["products", "giai-phap"],
@@ -71,14 +86,14 @@ export default function ScotchNavigation() {
             </svg>
           </Link>
           <div className={styles.mobileActions}>
-            {session.isPending ? (
+            {isCheckingSession ? (
               <div className={styles.authLoadingSkeleton} aria-busy="true">
                 <span className={styles.authSkeletonButton} />
               </div>
             ) : isAuthenticated ? (
               <div className={styles.mobileAuthRow}>
                 <span className={styles.primaryAction} onClick={() => setOpen(false)}>
-                  <WorkspaceLink compact hideIcon />
+                  <WorkspaceLink compact hideIcon hasSessionCookie={shouldProbeSession} />
                 </span>
                 <UserDropdown user={session.data} />
               </div>
@@ -93,14 +108,19 @@ export default function ScotchNavigation() {
                   {common("signin")}
                 </Link>
                 <span className={styles.primaryAction} onClick={() => setOpen(false)}>
-                  <WorkspaceLink compact guestLabel={t("getStarted")} hideIcon />
+                  <WorkspaceLink
+                    compact
+                    guestLabel={t("getStarted")}
+                    hideIcon
+                    hasSessionCookie={shouldProbeSession}
+                  />
                 </span>
               </div>
             )}
           </div>
         </nav>
         <div className={styles.headerActions}>
-          {session.isPending ? (
+          {isCheckingSession ? (
             <div className={styles.authLoadingSkeleton} aria-busy="true">
               <span className={styles.authSkeletonLink} />
               <span className={styles.authSkeletonButton} />
@@ -108,7 +128,7 @@ export default function ScotchNavigation() {
           ) : isAuthenticated ? (
             <>
               <span className={styles.primaryAction}>
-                <WorkspaceLink compact hideIcon />
+                <WorkspaceLink compact hideIcon hasSessionCookie={shouldProbeSession} />
               </span>
               <UserDropdown user={session.data} />
             </>
@@ -117,7 +137,12 @@ export default function ScotchNavigation() {
               <LanguageTogglePill variant="inverse" />
               <Link href="/signin">{common("signin")}</Link>
               <span className={styles.primaryAction}>
-                <WorkspaceLink compact guestLabel={t("getStarted")} hideIcon />
+                <WorkspaceLink
+                  compact
+                  guestLabel={t("getStarted")}
+                  hideIcon
+                  hasSessionCookie={shouldProbeSession}
+                />
               </span>
             </>
           )}

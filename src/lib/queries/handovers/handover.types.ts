@@ -175,9 +175,18 @@ export interface HandoverResource {
   etag: string;
 }
 
+export interface HandoverListSummaryDto {
+  total: number;
+  open: number;
+  overdue: number;
+  completed: number;
+  unassignedSuccessor: number;
+}
+
 export interface HandoverListDto {
   data: HandoverSummaryDto[];
   nextCursor: string | null;
+  summary?: HandoverListSummaryDto;
 }
 
 export interface DraftItemDto {

@@ -1,6 +1,5 @@
 "use client";
 
-import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
@@ -8,31 +7,45 @@ import Alert from "@/components/ui/alert/Alert";
 import GoogleOAuthButton from "@/components/auth/GoogleOAuthButton";
 import Select from "@/components/form/Select";
 import { Link, useRouter } from "@/i18n/navigation";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, hasClientSessionHint } from "@/lib/api-client";
 import {
   useSignInSessionQuery,
   useSharedLoginMutation,
 } from "@/lib/queries/auth/useSharedSignIn";
 import { ArrowRightIcon, EnvelopeIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import { useTranslations } from "next-intl";
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from "react";
 import styles from "./auth-experience.module.css";
 import { isSafeInvitationReturnTo } from "@/lib/queries/organization-memberships/organization-invitations";
+
+const subscribeNoop = () => () => undefined;
 
 export default function SignInForm({
   googleStatus,
   returnTo,
   initialEmail,
   switchAccount = false,
+  hasSessionCookie = false,
 }: {
   googleStatus?: "organization-required" | "failed" | "cancelled";
   returnTo?: string;
   initialEmail?: string;
   switchAccount?: boolean;
+  hasSessionCookie?: boolean;
 }) {
   const [showPassword, setShowPassword] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
   const [hasSubmittedSwitch, setHasSubmittedSwitch] = useState(false);
+  const [manualProbeEnabled, setManualProbeEnabled] = useState(false);
+  const hasSessionHint = useSyncExternalStore(
+    subscribeNoop,
+    hasClientSessionHint,
+    () => hasSessionCookie,
+  );
   const safeReturnTo = isSafeInvitationReturnTo(returnTo)
     ? returnTo
     : undefined;
@@ -46,7 +59,9 @@ export default function SignInForm({
   const t = useTranslations("auth");
   const ui = useTranslations("authExperience");
   const router = useRouter();
-  const currentUser = useSignInSessionQuery();
+  const currentUser = useSignInSessionQuery({
+    enabled: hasSessionCookie || hasSessionHint || manualProbeEnabled,
+  });
   const login = useSharedLoginMutation();
 
   useEffect(() => {
@@ -57,11 +72,15 @@ export default function SignInForm({
       return;
     }
     if (currentUser.isSuccess && !currentUser.isFetching && currentUser.data) {
-      router.replace(
-        (currentUser.data.context === "PLATFORM"
+      const nextDestination =
+        currentUser.data.context === "PLATFORM"
           ? "/platform"
-          : (safeReturnTo ?? "/select-organization")) as never,
-      );
+          : currentUser.data.context === "ORGANIZATION" &&
+              "organizationId" in currentUser.data &&
+              Boolean(currentUser.data.organizationId)
+            ? (safeReturnTo ?? "/dashboard")
+            : (safeReturnTo ?? "/select-organization");
+      router.replace(nextDestination as never);
     }
   }, [
     currentUser.isSuccess,
@@ -83,6 +102,7 @@ export default function SignInForm({
         password,
         ...(organizationId ? { organizationId: organizationId.trim() } : {}),
       });
+      setManualProbeEnabled(true);
       const session = await currentUser.refetch();
       if (session.isError || !session.data) {
         setSessionError(true);
@@ -214,12 +234,7 @@ export default function SignInForm({
             />
           </div>
         )}
-        <div className={styles.formOptions}>
-          <Checkbox
-            label={ui("remember")}
-            checked={isChecked}
-            onChange={setIsChecked}
-          />
+        <div className={`${styles.formOptions} justify-end`}>
           <Link href="/reset-password">{t("forgotPasswordLink")}</Link>
         </div>
         <Button

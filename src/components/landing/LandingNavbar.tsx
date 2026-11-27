@@ -1,20 +1,37 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useSyncExternalStore } from "react";
 import BrandLogo from "@/components/common/BrandLogo";
 import UserDropdown from "@/components/header/UserDropdown";
 import { Link } from "@/i18n/navigation";
-import { ArrowRightIcon } from "@/icons";
+import { ArrowRightIcon, CloseIcon, MenuIcon } from "@/icons";
+import { hasClientSessionHint } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 
-export default function LandingNavbar() {
+const subscribeNoop = () => () => undefined;
+
+export default function LandingNavbar({
+  hasSessionCookie = false,
+}: {
+  hasSessionCookie?: boolean;
+} = {}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const currentUser = useCurrentUserQuery();
+  const hasSessionHint = useSyncExternalStore(
+    subscribeNoop,
+    hasClientSessionHint,
+    () => hasSessionCookie,
+  );
+  const currentUser = useCurrentUserQuery({
+    enabled: hasSessionCookie || hasSessionHint,
+  });
+  const isCheckingSession =
+    currentUser.isLoading ||
+    (currentUser.isPending && currentUser.fetchStatus !== "idle");
 
   const renderAuthAction = (isMobile = false) => {
     if (currentUser.data) return <UserDropdown />;
 
-    if (currentUser.isPending) {
+    if (isCheckingSession) {
       return (
         <span
           aria-label="Đang kiểm tra phiên đăng nhập"
@@ -110,19 +127,11 @@ export default function LandingNavbar() {
           className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-[#334155] hover:bg-slate-100 md:hidden dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
         >
           <span className="sr-only">Mở menu điều hướng</span>
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            {mobileMenuOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
+          {mobileMenuOpen ? (
+            <CloseIcon aria-hidden="true" className="h-5 w-5" />
+          ) : (
+            <MenuIcon aria-hidden="true" className="h-5 w-5" />
+          )}
         </button>
       </div>
 

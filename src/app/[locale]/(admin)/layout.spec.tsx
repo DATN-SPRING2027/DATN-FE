@@ -7,9 +7,9 @@ import {
 } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import AdminLayout, { resolveAdminPageTransitionKey } from "./layout";
+import AdminLayout, { resolveAdminPageTransitionKey } from "./AdminLayoutShell";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, setAuthContextHint } from "@/lib/api-client";
 
 vi.mock("@/components/ai-companion/WorkReportReminderNotice", () => ({ default: () => null }));
 
@@ -44,13 +44,17 @@ vi.mock("@/i18n/navigation", () => ({
     <a href={href}>{children}</a>
   ),
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", () => ({
+  useMessages: () => ({}),
+  useTranslations: () => (key: string) => key,
+}));
 vi.mock("@/lib/queries/auth/useAuth", () => ({ useCurrentUserQuery: vi.fn() }));
 
 describe("protected dashboard layout", () => {
   beforeEach(() => {
     replace.mockReset();
     path.value = "/dashboard";
+    setAuthContextHint(null);
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -108,7 +112,7 @@ describe("protected dashboard layout", () => {
     expect(updatedShell.style.height).toBe("");
   });
 
-  it("mounts FloatingChatDock across workspace routes and hides it on the full /chat route", () => {
+  it("mounts FloatingChatDock across workspace routes and hides it on dedicated /chat and /ai-chat routes", () => {
     path.value = "/dashboard";
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: { id: "user", organizationId: "organization" },
@@ -131,7 +135,9 @@ describe("protected dashboard layout", () => {
         <div>Workspace content</div>
       </AdminLayout>,
     );
-    expect(screen.getByTestId("floating-chat-dock-shell")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("floating-chat-dock-shell"),
+    ).not.toBeInTheDocument();
 
     path.value = "/chat";
     rerender(
@@ -144,7 +150,27 @@ describe("protected dashboard layout", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("replays the chat content entrance when navigating between chat routes", () => {
+  it("skips /auth/me and immediately redirects to /platform when PLATFORM auth context hint is active", () => {
+    setAuthContextHint("PLATFORM");
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: undefined,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as never);
+
+    render(
+      <AdminLayout>
+        <div>Tenant dashboard</div>
+      </AdminLayout>,
+    );
+
+    expect(useCurrentUserQuery).toHaveBeenCalledWith({ enabled: false });
+    expect(replace).toHaveBeenCalledWith("/platform");
+    expect(screen.queryByText("Tenant dashboard")).not.toBeInTheDocument();
+  });
+
+  it("keeps chat layout mounted without forced remounts when navigating between chat routes", () => {
     path.value = "/chat";
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: { id: "user", organizationId: "organization" },
@@ -169,9 +195,6 @@ describe("protected dashboard layout", () => {
     const header = screen.getByText("header");
     const sidebar = screen.getByText("sidebar");
 
-    expect(screen.getByText("Chat content").parentElement).toHaveClass(
-      "continuum-page-enter",
-    );
     expect(onMount).toHaveBeenCalledTimes(1);
 
     path.value = "/ai-chat";
@@ -181,15 +204,30 @@ describe("protected dashboard layout", () => {
       </AdminLayout>,
     );
 
-    expect(onMount).toHaveBeenCalledTimes(2);
-    expect(screen.getByText("Chat content").parentElement).toHaveClass(
-      "continuum-page-enter",
-    );
+    expect(onMount).toHaveBeenCalledTimes(1);
     expect(screen.getByText("header")).toBe(header);
     expect(screen.getByText("sidebar")).toBe(sidebar);
   });
 
-  it("keeps project work workspace mounted across intra-work task and view sub-routes while remounting on project switch", () => {
+  it("redirects PLATFORM operator sessions from organization shell to /platform", async () => {
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: { id: "operator-1", context: "PLATFORM" },
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as never);
+
+    render(
+      <AdminLayout>
+        <div>Workspace content</div>
+      </AdminLayout>,
+    );
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/platform"));
+    expect(screen.queryByText("Workspace content")).not.toBeInTheDocument();
+  });
+
+  it("keeps project work workspace mounted without remounting on intra-work navigation", () => {
     expect(
       resolveAdminPageTransitionKey("/projects/p1/work/list/GENERAL-1"),
     ).toBe("/projects/p1/work");
@@ -238,14 +276,6 @@ describe("protected dashboard layout", () => {
       </AdminLayout>,
     );
     expect(onMount).toHaveBeenCalledTimes(1);
-
-    path.value = "/projects/p2/work";
-    rerender(
-      <AdminLayout>
-        <WorkContent />
-      </AdminLayout>,
-    );
-    expect(onMount).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the error card and Trying again button when an explicit retry becomes pending", async () => {

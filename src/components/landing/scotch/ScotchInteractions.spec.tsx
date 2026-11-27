@@ -298,4 +298,25 @@ describe("Scotch landing interactions", () => {
     expect(screen.queryByTestId("user-dropdown")).not.toBeInTheDocument();
     expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
+
+  it("skips session probing for anonymous visitors without a server or client session cookie", () => {
+    const queryMock = vi.mocked(useSignInSessionQuery);
+    queryMock.mockClear();
+    queryMock.mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isLoading: false,
+      fetchStatus: "idle",
+    } as never);
+
+    show(<ScotchNavigation hasSessionCookie={false} />);
+
+    expect(queryMock).toHaveBeenCalledWith({ enabled: false });
+    expect(screen.getAllByRole("link", { name: "Sign in" }).length).toBeGreaterThan(0);
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeInTheDocument();
+
+    queryMock.mockClear();
+    show(<ScotchNavigation hasSessionCookie={true} />);
+    expect(queryMock).toHaveBeenCalledWith({ enabled: true });
+  });
 });

@@ -32,21 +32,6 @@ vi.mock("@/lib/queries/organization-memberships/organization-membership-readines
 vi.mock("@/i18n/navigation", () => ({
   Link: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
-vi.mock("@/icons", () => ({
-  CheckCircleIcon: () => null,
-  CloseIcon: () => null,
-  EnvelopeIcon: () => null,
-  GroupIcon: () => null,
-  LockIcon: () => null,
-  MailIcon: () => null,
-  MoreDotIcon: () => null,
-  PaperPlaneIcon: () => null,
-  PencilIcon: () => null,
-  SearchIcon: () => null,
-  TimeIcon: () => null,
-  TrashBinIcon: () => null,
-  UserIcon: () => null,
-}));
 
 const api = vi.mocked(apiClient);
 const organizationId = "0123456789abcdef01234567";
@@ -1104,6 +1089,21 @@ describe("Organization membership management page", () => {
       `/iam/organizations/${organizationId}/invitations/${invitationId}/resend`,
       `/iam/organizations/${organizationId}/invitations/${newInvitationId}/resend`,
     ]);
+  });
+
+  it("closes the Invite member dialog immediately on Escape when open", async () => {
+    invitationReadiness.status = "READY";
+    respond({ memberships: membershipPage([]), invitations: invitationPage() });
+    mount();
+    await screen.findByRole("tab", { name: /Members/ });
+
+    fireEvent.click(screen.getByRole("button", { name: "Invite member" }));
+    const dialog = screen.getByRole("dialog", { name: "Invite member to Organization" });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Invite member to Organization" })).not.toBeInTheDocument();
   });
 
   it("noop view member cleanup", () => {

@@ -12,6 +12,7 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import Button from "@/components/ui/button/Button";
+import { getLocalTimeZone } from "@/lib/date-format";
 import { BackgroundRefreshError } from "@/components/ui/loading/AsyncStatus";
 import {
   AlertIcon,
@@ -769,7 +770,7 @@ function WorkReportReadingPane({
       const formattedDate = format.dateTime(new Date(evt.at), {
         dateStyle: "medium",
         timeStyle: "short",
-        timeZone: "UTC",
+        timeZone: getLocalTimeZone(),
       });
       return {
         action: evt.action,
@@ -1022,7 +1023,7 @@ function WorkReportReadingPane({
                 {t("due", {
                   date: format.dateTime(new Date(report.dueAt), {
                     dateStyle: "medium",
-                    timeZone: "UTC",
+                    timeZone: getLocalTimeZone(),
                   }),
                 })}
               </span>
@@ -1036,7 +1037,7 @@ function WorkReportReadingPane({
                       date: format.dateTime(new Date(report.submittedAt), {
                         dateStyle: "medium",
                         timeStyle: "short",
-                        timeZone: "UTC",
+                        timeZone: getLocalTimeZone(),
                       }),
                     })}
                   </span>
@@ -1049,7 +1050,7 @@ function WorkReportReadingPane({
                       date: format.dateTime(new Date(report.updatedAt), {
                         dateStyle: "medium",
                         timeStyle: "short",
-                        timeZone: "UTC",
+                        timeZone: getLocalTimeZone(),
                       }),
                     })}
                   </span>
@@ -1084,7 +1085,7 @@ function WorkReportReadingPane({
               {t("due", {
                 date: format.dateTime(new Date(report.dueAt), {
                   dateStyle: "medium",
-                  timeZone: "UTC",
+                  timeZone: getLocalTimeZone(),
                 }),
               })}
             </span>
@@ -1175,7 +1176,7 @@ function WorkReportReadingPane({
               {t("due", {
                 date: format.dateTime(new Date(report.dueAt), {
                   dateStyle: "medium",
-                  timeZone: "UTC",
+                  timeZone: getLocalTimeZone(),
                 }),
               })}{" "}
               ·{" "}
@@ -2404,7 +2405,7 @@ export default function ProjectWorkReportsWorkspace({
                             new Date(activePeriodObj.dueAt),
                             {
                               dateStyle: "medium",
-                              timeZone: "UTC",
+                              timeZone: getLocalTimeZone(),
                             },
                           ),
                         })}

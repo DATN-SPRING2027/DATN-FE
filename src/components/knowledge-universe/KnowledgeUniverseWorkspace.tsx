@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -57,12 +58,19 @@ import type {
   NeuralCortexNeuronItem,
   NeuralCortexRegionItem,
 } from "./neural-atlas-contract";
-import {
-  NeuralAtlasScene,
-  type NeuralAtlasSceneHandle,
-} from "./neural-atlas-scene";
+import type { NeuralAtlasSceneHandle } from "./neural-atlas-scene";
 import styles from "./neural-atlas.module.css";
-import { OrbitalEventEntityGraph } from "./orbital-graph-3d";
+
+const DynamicNeuralAtlasScene = dynamic(
+  () => import("./neural-atlas-scene").then((mod) => mod.NeuralAtlasScene),
+  { ssr: false },
+);
+
+const DynamicOrbitalEventEntityGraph = dynamic(
+  () =>
+    import("./orbital-graph-3d").then((mod) => mod.OrbitalEventEntityGraph),
+  { ssr: false },
+);
 import {
   findKnowledgeCluster,
   groupUnitsByDocument,
@@ -318,6 +326,7 @@ function KnowledgeUniverseContent() {
     Map<string, { label: string; fromUnits: boolean }>
   >(new Map());
   const hoverPrefetchTimerRef = React.useRef<number | null>(null);
+  const hoverPrefetchAbortRef = React.useRef<AbortController | null>(null);
 
   const trees = manifest?.trees ?? EMPTY_TREES;
   const sourceProjection = trees.some((tree) => tree.projection === "source");
@@ -373,35 +382,63 @@ function KnowledgeUniverseContent() {
         window.clearTimeout(hoverPrefetchTimerRef.current);
         hoverPrefetchTimerRef.current = null;
       }
+      if (hoverPrefetchAbortRef.current) {
+        hoverPrefetchAbortRef.current.abort();
+        hoverPrefetchAbortRef.current = null;
+      }
       if (!ref || !projectId) return;
       hoverPrefetchTimerRef.current = window.setTimeout(() => {
+        hoverPrefetchTimerRef.current = null;
         const targetCluster = findKnowledgeCluster(trees, ref);
         if (!targetCluster) return;
+        const controller = new AbortController();
+        hoverPrefetchAbortRef.current = controller;
         const { tree, node } = targetCluster;
         if (node.is_leaf) {
-          void fetchClusterCached(projectId, {
-            tree_version: tree.tree_version,
-            node_id: node.id,
-            limit: pageSize,
-          }).catch(() => undefined);
+          void fetchClusterCached(
+            projectId,
+            {
+              tree_version: tree.tree_version,
+              node_id: node.id,
+              limit: pageSize,
+            },
+            controller.signal,
+          ).catch(() => undefined);
           return;
         }
-        const children = tree.nodes
+        const topChild = tree.nodes
           .filter((n) => n.parent_id === node.id && n.unit_count > 0)
           .sort((a, b) => b.unit_count - a.unit_count)
-          .slice(0, 12);
-        const nodesToPrefetch = [node, ...children];
+          .slice(0, 1);
+        const nodesToPrefetch = [node, ...topChild];
         nodesToPrefetch.forEach((n) => {
-          void fetchClusterCached(projectId, {
-            tree_version: tree.tree_version,
-            node_id: n.id,
-            limit: 50,
-          }).catch(() => undefined);
+          void fetchClusterCached(
+            projectId,
+            {
+              tree_version: tree.tree_version,
+              node_id: n.id,
+              limit: 50,
+            },
+            controller.signal,
+          ).catch(() => undefined);
         });
-      }, 85);
+      }, 260);
     },
     [projectId, trees, pageSize, fetchClusterCached],
   );
+
+  React.useEffect(() => {
+    return () => {
+      if (hoverPrefetchTimerRef.current !== null) {
+        window.clearTimeout(hoverPrefetchTimerRef.current);
+        hoverPrefetchTimerRef.current = null;
+      }
+      if (hoverPrefetchAbortRef.current) {
+        hoverPrefetchAbortRef.current.abort();
+        hoverPrefetchAbortRef.current = null;
+      }
+    };
+  }, []);
 
   const clearSelection = React.useCallback(() => {
     setSelected(null);
@@ -1675,9 +1712,9 @@ function KnowledgeUniverseContent() {
     >
       {manifest && !fallback && trees.length > 0 && viewMode === "atlas" && (
         <div className={cn("sag-universe-graph", styles.graph)}>
-          <NeuralAtlasScene
+          <DynamicNeuralAtlasScene
             key={`${projectId}:${sceneAttempt}`}
-            ref={graphRef}
+            sceneRef={graphRef}
             regions={subtreeRegions}
             neurons={cortexNeurons}
             edges={cortexEdges}
@@ -1748,7 +1785,7 @@ function KnowledgeUniverseContent() {
           data-left-drawer={leftDrawerVisible || undefined}
           data-right-drawer={rightDrawerVisible || undefined}
         >
-          <OrbitalEventEntityGraph
+          <DynamicOrbitalEventEntityGraph
             graph={orbitalGraphData}
             refreshKey={`${projectId}:${activeKey}:${visibleUnitList.length}`}
             onOpenEvent={(eventItem) => {
@@ -2066,11 +2103,12 @@ function KnowledgeUniverseContent() {
                       onMouseEnter={() =>
                         prefetchRegion(selectedClusterInfo.ref)
                       }
+                      onMouseLeave={() => prefetchRegion(null)}
                       onClick={() =>
                         navigate(selectedClusterInfo.ref, selected.unitId)
                       }
                     >
-                      <span>Explore Region</span>
+                      <span>{t("browse")}</span>
                       <span aria-hidden="true">↗</span>
                     </button>
                   )}
@@ -2152,6 +2190,7 @@ function KnowledgeUniverseContent() {
                     className={styles.depthChip}
                     data-active={isItemActive || undefined}
                     onMouseEnter={() => prefetchRegion(item.ref)}
+                    onMouseLeave={() => prefetchRegion(null)}
                     onClick={() => navigate(item.ref)}
                   >
                     <span>{item.label}</span>
@@ -2269,7 +2308,7 @@ export default function KnowledgeUniverseWorkspace() {
     <Suspense
       fallback={
         <div className="flex h-full min-h-0 flex-1 items-center justify-center bg-[#0c1117] text-white/75">
-          <Loader2 className="mr-2 size-5 animate-spin text-[#e7b58a]" />
+          <Loader2 className="me-2 size-5 animate-spin text-[#e7b58a]" />
           <span className="text-sm">{t("loading")}</span>
         </div>
       }

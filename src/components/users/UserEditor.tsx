@@ -86,7 +86,7 @@ export default function UserEditor({ organizationId, userId, actorId, onClose, o
   const user = useUserQuery(organizationId, userId);
   const invalidRecord = user.error instanceof ApiError && [401, 403, 404].includes(user.error.status);
   return (
-    <Modal isOpen={Boolean(userId)} onClose={onClose} className="mx-4 max-w-xl">
+    <Modal isOpen={Boolean(userId)} onClose={onClose} ariaLabel={t("editUser")} className="mx-4 max-w-xl">
       {user.isPending && !user.data ? <div role="status" aria-busy="true" className="space-y-4 p-8"><span className="sr-only">{t("loading")}</span><div aria-hidden="true" className="continuum-shimmer h-5 w-40 rounded-md" /><div aria-hidden="true" className="continuum-shimmer h-12 rounded-lg" /></div> : null}
       {user.isError && (!user.data || invalidRecord) ? <div className="space-y-4 p-8"><Alert variant="error" title={t("loadErrorTitle")} message={invalidRecord && user.error instanceof ApiError && user.error.status === 403 ? t("forbidden") : t("loadError")} /><Button size="sm" variant="outline" onClick={() => void user.refetch()}>{t("retry")}</Button></div> : null}
       {user.data && !invalidRecord ? <div aria-busy={user.isFetching}>

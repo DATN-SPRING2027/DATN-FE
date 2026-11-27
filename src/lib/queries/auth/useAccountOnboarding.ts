@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getCsrfToken, setExpectedOrganizationId } from "@/lib/api-client";
 import { acceptOrganizationInvitation } from "@/lib/queries/organization-memberships/organization-invitations";
 import {
   parseRecipientInvitationPage,
@@ -9,8 +9,7 @@ import {
 import { authKeys } from "./auth.keys";
 import { syncCurrentAuthSessionCookie } from "./session-sync";
 import type { CurrentUserResponse } from "./useAuth";
-import { useChatNavigation } from "@/stores/chat-navigation";
-import { useFloatingChatStore } from "@/stores/floating-chat";
+import { clearAllClientSessionCaches } from "@/lib/session-cleanup";
 
 export interface OrganizationOption {
   id: string;
@@ -35,13 +34,8 @@ export function checkOrganizationSlugAvailability(
 }
 
 function csrfHeaders(): HeadersInit {
-  const entry = document.cookie
-    .split(";")
-    .map((value) => value.trim())
-    .find((value) => value.startsWith("__Host-csrf="));
-  return entry
-    ? { "x-csrf-token": decodeURIComponent(entry.slice("__Host-csrf=".length)) }
-    : {};
+  const token = getCsrfToken();
+  return token ? { "x-csrf-token": token } : {};
 }
 
 export function useOrganizationOptionsQuery(enabled: boolean) {
@@ -140,6 +134,7 @@ export function useSelectOrganizationMutation() {
       // AccountOnboarding / OrganizationTransition before router.replace("/dashboard") runs.
       syncCurrentAuthSessionCookie({ broadcastToOtherTabs: true });
       const nextOrganizationId = data?.user?.organizationId || organizationId;
+      setExpectedOrganizationId(nextOrganizationId);
       queryClient.setQueryData<CurrentUserResponse | undefined>(
         authKeys.currentUser(),
         (previous) => {
@@ -179,8 +174,7 @@ export function useSelectOrganizationMutation() {
       queryClient.removeQueries({
         predicate: (query) => query.queryKey[0] !== "auth",
       });
-      useFloatingChatStore.getState().reset();
-      useChatNavigation.getState().clear();
+      clearAllClientSessionCaches();
     },
   });
 }

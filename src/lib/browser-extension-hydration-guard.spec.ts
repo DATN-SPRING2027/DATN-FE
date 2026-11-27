@@ -1,76 +1,68 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   BROWSER_EXTENSION_HYDRATION_GUARD_SCRIPT,
-  isBrowserExtensionError,
-  isExtensionInjectedAttribute,
-  sanitizeSubtreeExtensionAttributes,
+  installBrowserExtensionHydrationGuard,
+  teardownBrowserExtensionHydrationGuard,
 } from "./browser-extension-hydration-guard";
 
-describe("browser-extension-hydration-guard", () => {
-  it("identifies known extension-injected attributes such as bis_skin_checked", () => {
-    expect(isExtensionInjectedAttribute("bis_skin_checked")).toBe(true);
-    expect(isExtensionInjectedAttribute("bis_register")).toBe(true);
-    expect(isExtensionInjectedAttribute("data-bis-config")).toBe(true);
-    expect(isExtensionInjectedAttribute("__processed_123")).toBe(true);
-    expect(isExtensionInjectedAttribute("data-auth-route")).toBe(false);
-    expect(isExtensionInjectedAttribute("class")).toBe(false);
+describe("browser-extension-hydration-guard (FE-PERF-001)", () => {
+  const nativeSetAttribute = Element.prototype.setAttribute;
+
+  beforeEach(() => {
+    teardownBrowserExtensionHydrationGuard();
+    window.__continuumExtHydrationGuardInstalled = false;
+    window.__continuumExtHydrationGuardActive = false;
+    Element.prototype.setAttribute = nativeSetAttribute;
   });
 
-  it("strips extension-injected attributes from an element tree while preserving app attributes", () => {
-    const container = document.createElement("div");
-    container.setAttribute("data-auth-route", "/select-organization");
-    container.setAttribute("bis_skin_checked", "1");
-
-    const child = document.createElement("div");
-    child.setAttribute("class", "h-8 w-40");
-    child.setAttribute("bis_skin_checked", "1");
-    child.setAttribute("bis_register", "W10=");
-    container.appendChild(child);
-
-    sanitizeSubtreeExtensionAttributes(container);
-
-    expect(container.getAttribute("data-auth-route")).toBe("/select-organization");
-    expect(container.hasAttribute("bis_skin_checked")).toBe(false);
-    expect(child.getAttribute("class")).toBe("h-8 w-40");
-    expect(child.hasAttribute("bis_skin_checked")).toBe(false);
-    expect(child.hasAttribute("bis_register")).toBe(false);
+  afterEach(() => {
+    teardownBrowserExtensionHydrationGuard();
+    window.__continuumExtHydrationGuardInstalled = false;
+    window.__continuumExtHydrationGuardActive = false;
+    Element.prototype.setAttribute = nativeSetAttribute;
   });
 
-  it("identifies uncaught errors originating from browser extensions (including M_ID)", () => {
-    expect(
-      isBrowserExtensionError({
-        filename: "chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/executors/200.js",
-        message: "Cannot read properties of undefined (reading 'M_ID')",
-        stack:
-          "TypeError: Cannot read properties of undefined (reading 'M_ID')\n    at Y (chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/executors/200.js:1:761)",
-      }),
-    ).toBe(true);
+  it("strips extension attributes during hydration and restores native Element.prototype.setAttribute on teardown", () => {
+    const el = document.createElement("div");
+    el.setAttribute("bis_skin_checked", "1");
+    document.body.appendChild(el);
 
-    expect(
-      isBrowserExtensionError({
-        filename: "http://localhost:3000/_next/static/chunks/app.js",
-        message: "TypeError: Failed to fetch",
-        stack: "TypeError: Failed to fetch\n    at fetchUser (http://localhost:3000/_next/static/chunks/app.js:10:5)",
-      }),
-    ).toBe(false);
+    installBrowserExtensionHydrationGuard();
+    expect(el.hasAttribute("bis_skin_checked")).toBe(false);
+    expect(window.__continuumExtHydrationGuardActive).toBe(true);
+    expect(Element.prototype.setAttribute).not.toBe(nativeSetAttribute);
+
+    // Extension attribute injection is blocked while guard is active
+    el.setAttribute("bis_skin_checked", "1");
+    expect(el.hasAttribute("bis_skin_checked")).toBe(false);
+
+    // Teardown restores native prototype and disconnects observer cleanly
+    teardownBrowserExtensionHydrationGuard();
+    expect(window.__continuumExtHydrationGuardActive).toBe(false);
+    expect(Element.prototype.setAttribute).toBe(nativeSetAttribute);
+
+    // Native setAttribute works normally post-hydration
+    el.setAttribute("data-test", "ok");
+    expect(el.getAttribute("data-test")).toBe("ok");
+
+    el.remove();
   });
 
-  it("blocks setAttribute('bis_skin_checked', '1') when the inline guard script executes", () => {
-    const wrapper = document.createElement("div");
-    wrapper.setAttribute("bis_skin_checked", "1");
-    document.body.appendChild(wrapper);
+  it("cleans bis_skin_checked on hidden metadata boundary nodes via the synchronous <head> inline script and tears down cleanly", () => {
+    const metadataBoundaryDiv = document.createElement("div");
+    metadataBoundaryDiv.hidden = true;
+    metadataBoundaryDiv.setAttribute("bis_skin_checked", "1");
+    document.body.appendChild(metadataBoundaryDiv);
 
-    // Execute the inline guard script in the current jsdom window
     window.eval(BROWSER_EXTENSION_HYDRATION_GUARD_SCRIPT);
 
-    expect(wrapper.hasAttribute("bis_skin_checked")).toBe(false);
+    expect(metadataBoundaryDiv.hasAttribute("bis_skin_checked")).toBe(false);
+    metadataBoundaryDiv.setAttribute("bis_skin_checked", "1");
+    expect(metadataBoundaryDiv.hasAttribute("bis_skin_checked")).toBe(false);
 
-    // Subsequent attempts by an extension to set bis_skin_checked are ignored
-    wrapper.setAttribute("bis_skin_checked", "1");
-    wrapper.setAttribute("data-testid", "kept");
-    expect(wrapper.hasAttribute("bis_skin_checked")).toBe(false);
-    expect(wrapper.getAttribute("data-testid")).toBe("kept");
+    teardownBrowserExtensionHydrationGuard();
+    expect(Element.prototype.setAttribute).toBe(nativeSetAttribute);
 
-    wrapper.remove();
+    metadataBoundaryDiv.remove();
   });
 });

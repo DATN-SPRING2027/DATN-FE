@@ -3,7 +3,7 @@ import DangerZone from "@/components/user-profile/DangerZone";
 import Security from "@/components/user-profile/Security";
 import UserMetaCard from "@/components/user-profile/UserMetaCard";
 import { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { buildAppPageMetadata } from "@/lib/page-titles.server";
 
@@ -17,7 +17,13 @@ export function generateMetadata({
   });
 }
 
-export default async function Profile() {
+export default async function Profile({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   const t = await getTranslations("profile");
 
   return (

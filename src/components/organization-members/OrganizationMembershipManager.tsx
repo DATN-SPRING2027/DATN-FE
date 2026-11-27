@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import {
@@ -58,6 +58,22 @@ import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/
 const pageSize = 20;
 type MembershipStatusFilter = "ALL" | NonNullable<MembershipListFilter["status"]>;
 type DirectoryTab = "members" | "invitations";
+
+function subscribeDirectoryTab(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  window.addEventListener("popstate", callback);
+  return () => window.removeEventListener("popstate", callback);
+}
+
+function getDirectoryTabFromLocation(): DirectoryTab {
+  if (typeof window === "undefined") return "members";
+  const tabParam = new URLSearchParams(window.location.search).get("tab");
+  return tabParam === "invitations" ? "invitations" : "members";
+}
+
+function getServerDirectoryTab(): DirectoryTab {
+  return "members";
+}
 
 function getErrorMessageKey(error: unknown, fallbackKey = "failure"): string {
   if (!(error instanceof ApiError)) return "network";
@@ -157,13 +173,14 @@ function ScopedOrganizationMemberships({
   const cachedOrganizations = queryClient.getQueryData<readonly { id: string; name: string }[]>(["auth", "organizations"]);
   const organizationName = cachedOrganizations?.find((org) => org.id === organizationId)?.name;
   const inviteDialog = useModal();
-  const [activeTab, setActiveTab] = useState<DirectoryTab>(() => {
-    if (typeof window !== "undefined") {
-      const tabParam = new URLSearchParams(window.location.search).get("tab");
-      if (tabParam === "invitations") return "invitations";
-    }
-    return "members";
-  });
+  const urlTab = useSyncExternalStore(
+    subscribeDirectoryTab,
+    getDirectoryTabFromLocation,
+    getServerDirectoryTab,
+  );
+  const [tabOverride, setTabOverride] = useState<DirectoryTab | null>(null);
+  const activeTab: DirectoryTab = tabOverride ?? urlTab;
+  const setActiveTab = (next: DirectoryTab) => setTabOverride(next);
   const tabRefs = useRef<Record<DirectoryTab, HTMLButtonElement | null>>({ members: null, invitations: null });
   const [status, setStatus] = useState<MembershipStatusFilter>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
@@ -193,7 +210,9 @@ function ScopedOrganizationMemberships({
     queryFn: async ({ signal }) => {
       const first = await listOrganizationMemberships(organizationId, { page: 1, pageSize: 100, status: "ACTIVE" }, signal);
       const members = [...first.data];
-      for (let page = 2; page <= first.pagination.totalPages; page += 1) {
+      const maxPages = Math.min(first.pagination.totalPages, 10);
+      for (let page = 2; page <= maxPages; page += 1) {
+        if (signal?.aborted) break;
         const next = await listOrganizationMemberships(organizationId, { page, pageSize: 100, status: "ACTIVE" }, signal);
         members.push(...next.data);
       }
@@ -210,7 +229,10 @@ function ScopedOrganizationMemberships({
   const roleChange = useSetOrganizationMembershipRole(actorId, organizationId);
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
-  const inviteAttempt = useRef<{ input: InviteMemberInput; idempotencyKey: string } | null>(null);
+  const inviteAttempt = useRef<{
+    signature: string;
+    items: Map<string, { idempotencyKey: string; sent: boolean }>;
+  } | null>(null);
   const roleAttempt = useRef<{
     input: SetOrganizationMembershipRoleInput & { membershipId: string };
     idempotencyKey: string;
@@ -290,28 +312,43 @@ function ScopedOrganizationMemberships({
 
   async function submitInvite(input: InviteMemberInput) {
     if (!canSendInvitation || invite.isPending || hasUnresolvedMutation) return;
-    const previousAttempt = inviteAttempt.current;
-    const idempotencyKey =
-      previousAttempt && JSON.stringify(previousAttempt.input) === JSON.stringify(input)
-        ? previousAttempt.idempotencyKey
-        : createIdempotencyKey();
-    inviteAttempt.current = { input, idempotencyKey };
+    const { emails, ...baseInput } = input;
+    const targetEmails = emails && emails.length > 1 ? emails : [input.email];
+    const signature = JSON.stringify({
+      ...baseInput,
+      emails: targetEmails.map((email) => email.trim().toLowerCase()),
+    });
+
+    if (!inviteAttempt.current || inviteAttempt.current.signature !== signature) {
+      const items = new Map<string, { idempotencyKey: string; sent: boolean }>();
+      for (const emailItem of targetEmails) {
+        const normalized = emailItem.trim().toLowerCase();
+        if (!items.has(normalized)) {
+          items.set(normalized, {
+            idempotencyKey: createIdempotencyKey(),
+            sent: false,
+          });
+        }
+      }
+      inviteAttempt.current = { signature, items };
+    }
 
     try {
-      const { emails, ...baseInput } = input;
-      const targetEmails = emails && emails.length > 1 ? emails : [input.email];
-      for (let idx = 0; idx < targetEmails.length; idx += 1) {
-        const emailItem = targetEmails[idx]!;
-        const itemKey = idx === 0 ? idempotencyKey : createIdempotencyKey();
+      const batch = inviteAttempt.current;
+      for (const emailItem of targetEmails) {
+        const normalized = emailItem.trim().toLowerCase();
+        const entry = batch.items.get(normalized);
+        if (!entry || entry.sent) continue;
         await invite.mutateAsync({
           input: { ...baseInput, email: emailItem },
-          idempotencyKey: itemKey,
+          idempotencyKey: entry.idempotencyKey,
         });
+        entry.sent = true;
       }
       inviteAttempt.current = null;
       setInviteSuccess(true);
     } catch {
-      // Keep the exact request and idempotency key available for a safe retry.
+      // Preserve per-email idempotency keys and skip already-sent emails on retry.
     }
   }
 

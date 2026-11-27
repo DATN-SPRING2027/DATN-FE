@@ -63,6 +63,11 @@ vi.mock("@/lib/queries/handovers/useHandovers", () => ({
     project: (projectId: string) => ["handovers", projectId],
   },
   useHandoverDetailQuery: vi.fn(),
+  useDepartingMemberPreviewQuery: vi.fn(() => ({
+    data: undefined,
+    isPending: false,
+    isError: false,
+  })),
   useUpdateHandoverMetadataMutation: vi.fn(),
   useSetHandoverSuccessorMutation: vi.fn(),
   useSetHandoverCoordinatorMutation: vi.fn(),
