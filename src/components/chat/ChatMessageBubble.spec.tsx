@@ -265,6 +265,18 @@ it("renders a dedicated Continuum AI card with source chips, edited/deleted badg
     screen.getByTestId("assistant-source-deleted-badge"),
   ).toHaveTextContent("Source deleted");
 
+  // Evidence sources are collapsed by default behind the icon dropdown button
+  const sourcesToggle = screen.getByTestId("assistant-sources-toggle");
+  expect(sourcesToggle).toHaveAttribute("aria-expanded", "false");
+  expect(
+    screen.queryByTestId("assistant-source-list"),
+  ).not.toBeInTheDocument();
+
+  // Clicking the evidence toggle expands the dropdown revealing all sources
+  fireEvent.click(sourcesToggle);
+  expect(sourcesToggle).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByTestId("assistant-source-list")).toBeInTheDocument();
+
   // ACTIVE & EDITED source chips remain clickable and jump to original message
   fireEvent.click(screen.getByTestId("assistant-source-chip-M1"));
   expect(onOpenContext).toHaveBeenCalledWith("src-active");
@@ -388,6 +400,9 @@ it("renders distinct inline status cards for PENDING, CANCELLED (SOURCE_CHANGED 
   expect(
     screen.getByTestId("assistant-trigger-status-pending"),
   ).toBeInTheDocument();
+  expect(
+    screen.getByTestId("assistant-thinking-dots").querySelectorAll(".cu-ai-wave-dot"),
+  ).toHaveLength(3);
 
   // CANCELLED / SOURCE_CHANGED shows separate warning + Ask again button
   rerender(
@@ -488,7 +503,7 @@ it("renders distinct inline status cards for PENDING, CANCELLED (SOURCE_CHANGED 
   await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(2));
 });
 
-it("collapses multi-source citations to 3 in Full Chat and 2 in compact Mini Chat while prioritizing mutated sources", () => {
+it("keeps evidence dropdown collapsed by default in both Full Chat and compact Mini Chat and toggles cleanly on click or Escape", () => {
   const sources = [
     {
       refId: "M1",
@@ -576,33 +591,35 @@ it("collapses multi-source citations to 3 in Full Chat and 2 in compact Mini Cha
     </NextIntlClientProvider>,
   );
 
-  // Full Chat collapsed: 3 visible chips, prioritizing EDITED M5 and DELETED M6 + M1
-  expect(screen.getByTestId("assistant-source-chip-M1")).toBeInTheDocument();
-  expect(screen.getByTestId("assistant-source-chip-M5")).toBeInTheDocument();
-  expect(screen.getByTestId("assistant-source-chip-M6")).toBeInTheDocument();
-  expect(
-    screen.queryByTestId("assistant-source-chip-M2"),
-  ).not.toBeInTheDocument();
-
+  // Full Chat default: evidence dropdown is collapsed cleanly behind the toggle button
   const toggle = screen.getByTestId("assistant-sources-toggle");
   expect(toggle).toHaveAttribute("aria-expanded", "false");
-  expect(toggle).toHaveTextContent("Show all 6 sources");
-
-  // Expanding reveals all 6 sources
-  fireEvent.click(toggle);
-  expect(toggle).toHaveAttribute("aria-expanded", "true");
-  expect(toggle).toHaveTextContent("Show fewer sources");
-  expect(screen.getByTestId("assistant-source-chip-M2")).toBeInTheDocument();
-  expect(screen.getByTestId("assistant-source-chip-M4")).toBeInTheDocument();
-
-  // Collapsing hides extras again
-  fireEvent.click(toggle);
-  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(toggle).toHaveTextContent("Sources (6)");
   expect(
-    screen.queryByTestId("assistant-source-chip-M4"),
+    screen.queryByTestId("assistant-source-list"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByTestId("assistant-source-chip-M1"),
   ).not.toBeInTheDocument();
 
-  // Compact Mini Chat mode collapses to 2 chips (prioritizing EDITED M5 + DELETED M6)
+  // Clicking opens the evidence dropdown showing all 6 sources
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByTestId("assistant-source-list")).toBeInTheDocument();
+  expect(screen.getByTestId("assistant-source-chip-M1")).toBeInTheDocument();
+  expect(screen.getByTestId("assistant-source-chip-M5")).toBeInTheDocument();
+  expect(screen.getByTestId("assistant-source-chip-M6")).toBeDisabled();
+
+  // Pressing Escape inside the dropdown collapses it cleanly
+  fireEvent.keyDown(screen.getByTestId("assistant-source-list"), {
+    key: "Escape",
+  });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(
+    screen.queryByTestId("assistant-source-list"),
+  ).not.toBeInTheDocument();
+
+  // Compact Mini Chat mode also keeps evidence collapsed by default and expands on click
   rerender(
     <NextIntlClientProvider locale="en" messages={messages}>
       <ChatMessageBubble
@@ -621,9 +638,13 @@ it("collapses multi-source citations to 3 in Full Chat and 2 in compact Mini Cha
       />
     </NextIntlClientProvider>,
   );
-  expect(screen.getByTestId("assistant-source-chip-M5")).toBeInTheDocument();
-  expect(screen.getByTestId("assistant-source-chip-M6")).toBeInTheDocument();
+  const compactToggle = screen.getByTestId("assistant-sources-toggle");
+  expect(compactToggle).toHaveAttribute("aria-expanded", "false");
   expect(
-    screen.queryByTestId("assistant-source-chip-M1"),
+    screen.queryByTestId("assistant-source-chip-M5"),
   ).not.toBeInTheDocument();
+  fireEvent.click(compactToggle);
+  expect(compactToggle).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByTestId("assistant-source-chip-M5")).toBeInTheDocument();
+  expect(screen.getByTestId("assistant-source-chip-M6")).toBeDisabled();
 });

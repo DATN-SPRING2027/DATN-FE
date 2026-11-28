@@ -166,12 +166,12 @@ export default function ChatMessageBubble({
         )}
         {isAssistant ? (
           <div
-            className={`relative w-full min-w-0 rounded-2xl rounded-es-md border shadow-theme-xs ${
-              compact ? "px-2.5 py-2" : "px-3.5 py-3"
+            className={`relative w-full min-w-0 overflow-hidden rounded-2xl rounded-es-md border border-s-3 ${
+              compact ? "px-3 py-2.5" : "px-4 py-3.5"
             } ${
               isInsufficient
-                ? "border-gray-200/90 bg-gray-50/95 text-gray-900 dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-100"
-                : "border-brand-200/80 bg-brand-25/90 text-gray-900 dark:border-brand-500/25 dark:bg-brand-950/35 dark:text-gray-100"
+                ? "border-gray-200/90 border-s-gray-400 bg-gray-50/90 text-gray-900 shadow-theme-xs dark:border-gray-700 dark:border-s-gray-500 dark:bg-gray-900/90 dark:text-gray-100"
+                : "border-gray-200/90 border-s-brand-500 bg-gradient-to-b from-brand-25/55 via-white to-white text-gray-900 shadow-theme-sm ring-1 ring-brand-500/8 dark:border-gray-800 dark:border-s-brand-400 dark:from-brand-950/35 dark:via-gray-900 dark:to-gray-900 dark:text-gray-100 dark:ring-brand-400/12"
             } ${highlighted ? "ring-2 ring-warning-500 ring-offset-2 dark:ring-offset-gray-900" : ""}`}
           >
             <AssistantBubbleBody
@@ -190,7 +190,7 @@ export default function ChatMessageBubble({
                       setConfirmDelete(false);
                       setPickingReaction(false);
                     }}
-                    className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-gray-600 transition hover:bg-brand-100/70 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-brand-500/20 dark:hover:text-gray-100"
+                    className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
                   >
                     <MoreDotIcon className="h-4 w-4" />
                   </button>

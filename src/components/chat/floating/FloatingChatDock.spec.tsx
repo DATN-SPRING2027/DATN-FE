@@ -1398,7 +1398,10 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
       await within(miniWindow).findByTestId("assistant-message-card"),
     ).toBeInTheDocument();
 
-    // 2. Clicking off-page source chip opens aroundMessageId context inside MiniChatWindow
+    // 2. Opening the evidence dropdown & clicking off-page source chip opens aroundMessageId context inside MiniChatWindow
+    fireEvent.click(
+      within(miniWindow).getByTestId("assistant-sources-toggle"),
+    );
     fireEvent.click(
       within(miniWindow).getByTestId("assistant-source-chip-M1"),
     );
@@ -1469,6 +1472,12 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     expect(
       await within(miniWindow).findByTestId("assistant-source-deleted-badge"),
     ).toBeInTheDocument();
+    const deletedToggle = within(miniWindow).getByTestId(
+      "assistant-sources-toggle",
+    );
+    if (deletedToggle.getAttribute("aria-expanded") !== "true") {
+      fireEvent.click(deletedToggle);
+    }
     expect(
       within(miniWindow).getByTestId("assistant-source-chip-M1"),
     ).toBeDisabled();

@@ -517,7 +517,8 @@ it("handles @continuumAI sending, live WS assistant.status updates, off-page sou
     await screen.findByTestId("assistant-source-edited-badge"),
   ).toBeInTheDocument();
 
-  // Clicking the off-page source chip calls aroundMessageId context query!
+  // Opening the evidence dropdown & clicking the off-page source chip calls aroundMessageId context query!
+  fireEvent.click(screen.getByTestId("assistant-sources-toggle"));
   fireEvent.click(screen.getByTestId("assistant-source-chip-M1"));
   await waitFor(() =>
     expect(messageContextSpy).toHaveBeenCalledWith(
