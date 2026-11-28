@@ -19,3 +19,20 @@ it("renders only HTTP(S) URLs as safe links and leaves markup as text", () => {
   expect(document.querySelector("img")).toBeNull();
   expect(messageLinks("https://user:secret@example.test")).toEqual([]);
 });
+
+it("highlights @continuumAI trigger tokens with translate=no in both outgoing and incoming bubbles", () => {
+  const { rerender } = render(
+    <MessageContent content="@continuumAI Hôm qua chốt gì?" mine />,
+  );
+  const outgoingToken = screen.getByTestId("message-assistant-mention-token");
+  expect(outgoingToken).toHaveTextContent("@continuumAI");
+  expect(outgoingToken).toHaveAttribute("translate", "no");
+  expect(outgoingToken.className).toContain("text-white");
+
+  rerender(
+    <MessageContent content="Check @continuumAI về PAY-123" mine={false} />,
+  );
+  const incomingToken = screen.getByTestId("message-assistant-mention-token");
+  expect(incomingToken).toHaveTextContent("@continuumAI");
+  expect(incomingToken.className).toContain("text-brand-800");
+});

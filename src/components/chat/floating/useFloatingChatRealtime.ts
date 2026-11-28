@@ -19,6 +19,12 @@ import {
   type ChatPage,
 } from "@/lib/queries/chat/useChat";
 import { preserveLocalReactions } from "../message-state";
+import {
+  applyAssistantStatusToCaches,
+  invalidateConversationMessageQueries,
+  isAssistantStatusEvent,
+  syncTriggerStateFromAssistantMessage,
+} from "../assistant-utils";
 import { useFloatingChatStore } from "@/stores/floating-chat";
 import {
   acquireSharedChatWsTicket,
@@ -338,6 +344,9 @@ export function useFloatingChatRealtime({
                 void queryClient.invalidateQueries({
                   queryKey: chatKeys.conversations(organizationId),
                 });
+                void queryClient.invalidateQueries({
+                  queryKey: ["chat", organizationId, "messages"],
+                });
               }
             } else if (
               packet.event === "message.created" &&
@@ -346,7 +355,13 @@ export function useFloatingChatRealtime({
               const message = packet.data;
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
-                (page) => mergeChatMessage(page, message),
+                (page) => {
+                  const merged = mergeChatMessage(page, message);
+                  return (
+                    syncTriggerStateFromAssistantMessage(merged, message) ??
+                    merged
+                  );
+                },
               );
               void queryClient.invalidateQueries({
                 queryKey: chatKeys.conversations(organizationId),
@@ -365,31 +380,37 @@ export function useFloatingChatRealtime({
                 }
               }
             } else if (
+              packet.event === "assistant.status" &&
+              isAssistantStatusEvent(packet.data)
+            ) {
+              applyAssistantStatusToCaches(
+                queryClient,
+                organizationId,
+                packet.data,
+              );
+            } else if (
               (packet.event === "message.updated" ||
                 packet.event === "message.deleted") &&
               isChatMessagePacket(packet.data)
             ) {
               const message = packet.data;
-              const current = queryClient.getQueryData<ChatPage<ChatMessage>>(
-                chatKeys.messages(organizationId, message.conversationId),
-              );
-              const previous = current?.data.find(
-                (item) => item.id === message.id,
-              );
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
-                (page) =>
-                  mergeChatMessage(
+                (page) => {
+                  const previous = page?.data.find(
+                    (item) => item.id === message.id,
+                  );
+                  return mergeChatMessage(
                     page,
                     preserveLocalReactions(message, previous),
-                  ),
+                  );
+                },
               );
-              void queryClient.invalidateQueries({
-                queryKey: chatKeys.messages(
-                  organizationId,
-                  message.conversationId,
-                ),
-              });
+              void invalidateConversationMessageQueries(
+                queryClient,
+                organizationId,
+                message.conversationId,
+              );
               void queryClient.invalidateQueries({
                 queryKey: chatKeys.conversations(organizationId),
               });

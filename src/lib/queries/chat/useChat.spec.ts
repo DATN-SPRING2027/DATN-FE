@@ -9,9 +9,21 @@ import {
 } from "@/components/chat/floating/chat-shared-helpers";
 import {
   chatApi,
+  CONTINUUM_AI_SENDER_ID,
+  isAssistantMessage,
   normalizeChatAttachmentUrl,
+  type ChatConversation,
   type ChatMessage,
 } from "./useChat";
+import {
+  applyAssistantStatusToMessagePage,
+  extractAssistantMentionQuery,
+  isAssistantStatusEvent,
+  isDmAssistantEnabledForConversation,
+  resolveChatSendErrorKey,
+  syncTriggerStateFromAssistantMessage,
+} from "@/components/chat/assistant-utils";
+import { formatCitationSnippetPreview } from "@/components/ai-chat/answer-prose-utils";
 
 const message = (id: string, content = id) =>
   ({
@@ -104,5 +116,110 @@ describe("chat history recovery", () => {
     });
     expect(getChatWsCooldownRemainingMs("u1:o1")).toBeGreaterThanOrEqual(40_000);
     resetChatWsCooldown();
+  });
+
+  it("gates DM assistant capability strictly to DIRECT conversations and validates WS assistant.status events", () => {
+    const directEnabled = {
+      type: "DIRECT",
+      capabilities: { dmAssistantEnabled: true },
+    } as ChatConversation;
+    const directDisabled = {
+      type: "DIRECT",
+      capabilities: { dmAssistantEnabled: false },
+    } as ChatConversation;
+    const roomWithFlag = {
+      type: "ROOM",
+      capabilities: { dmAssistantEnabled: true },
+    } as ChatConversation;
+
+    expect(isDmAssistantEnabledForConversation(directEnabled)).toBe(true);
+    expect(
+      isDmAssistantEnabledForConversation(directDisabled, {
+        dmAssistantEnabled: true,
+      }),
+    ).toBe(false);
+    expect(
+      isDmAssistantEnabledForConversation(
+        { type: "DIRECT" } as ChatConversation,
+        { dmAssistantEnabled: true },
+      ),
+    ).toBe(true);
+    expect(
+      isDmAssistantEnabledForConversation(
+        { type: "DIRECT" } as ChatConversation,
+      ),
+    ).toBe(false);
+    expect(
+      isDmAssistantEnabledForConversation(roomWithFlag, {
+        dmAssistantEnabled: true,
+      }),
+    ).toBe(false);
+
+    expect(
+      extractAssistantMentionQuery("  @continuumAI:  Hôm qua chốt gì?  "),
+    ).toBe("Hôm qua chốt gì?");
+    expect(extractAssistantMentionQuery("@continuumAI")).toBe("");
+
+    const validEvent = {
+      conversationId: "conv-1",
+      triggerMessageId: "trigger-1",
+      jobId: "job-1",
+      status: "PROCESSING" as const,
+      failureCode: null,
+      responseMessageId: null,
+      updatedAt: "2026-11-28T09:00:00.000Z",
+    };
+    expect(isAssistantStatusEvent(validEvent)).toBe(true);
+    expect(isAssistantStatusEvent({ ...validEvent, status: "BOGUS" })).toBe(
+      false,
+    );
+
+    const updatedPage = applyAssistantStatusToMessagePage(
+      { data: [message("trigger-1", "@continuumAI test")], nextCursor: null },
+      validEvent,
+    );
+    expect(updatedPage?.data[0]?.assistantState).toMatchObject({
+      jobId: "job-1",
+      status: "PROCESSING",
+      failureCode: null,
+    });
+
+    const aiReply = {
+      ...message("ai-1", "Summary"),
+      senderId: CONTINUUM_AI_SENDER_ID,
+      authorType: "ASSISTANT" as const,
+      triggerMessageId: "trigger-1",
+      assistantStatus: "COMPLETED" as const,
+    };
+    expect(isAssistantMessage(aiReply)).toBe(true);
+    const syncedPage = syncTriggerStateFromAssistantMessage(
+      updatedPage,
+      aiReply,
+    );
+    expect(syncedPage?.data[0]?.assistantState?.status).toBe("COMPLETED");
+    expect(syncedPage?.data[0]?.assistantState?.responseMessageId).toBe("ai-1");
+
+    expect(
+      resolveChatSendErrorKey(
+        new ApiError(429, "CHAT_ASSISTANT_RATE_LIMITED", "Rate limited"),
+      ),
+    ).toBe("assistantErrorRateLimited");
+    expect(
+      resolveChatSendErrorKey(
+        new ApiError(503, "CHAT_AI_NOT_ENABLED", "Disabled"),
+      ),
+    ).toBe("assistantErrorDisabled");
+    expect(
+      resolveChatSendErrorKey(
+        new ApiError(409, "CHAT_DIRECT_UNAVAILABLE", "Blocked"),
+      ),
+    ).toBe("assistantErrorBlocked");
+
+    expect(
+      formatCitationSnippetPreview(
+        "Đã qua toàn bộ bài test tích hợp trên staging., kiểm tra thêm phần khác",
+        49,
+      ),
+    ).toBe("Đã qua toàn bộ bài test tích hợp trên staging…");
   });
 });

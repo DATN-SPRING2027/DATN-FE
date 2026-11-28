@@ -38,28 +38,54 @@ export default function ChatDraftComposer({
   });
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latest = useRef<
-    { content: string; mentionUserIds: readonly string[] } | undefined
+    | {
+        content: string;
+        mentionUserIds: readonly string[];
+        assistantMention?: boolean;
+      }
+    | undefined
   >(undefined);
   const mounted = useRef(true);
+  const trackAssistantDraft = Boolean(
+    props.dmAssistantEnabled || draft.data?.assistantMention,
+  );
   const enqueue = (value: {
     content: string;
     mentionUserIds: readonly string[];
+    assistantMention?: boolean;
   }) => {
-    const normalized = {
-      content: value.content,
-      mentionUserIds: [...value.mentionUserIds],
-    };
+    const includeAssistant =
+      value.assistantMention !== undefined || trackAssistantDraft;
+    const normalized = includeAssistant
+      ? {
+          content: value.content,
+          mentionUserIds: [...value.mentionUserIds],
+          assistantMention: Boolean(value.assistantMention),
+        }
+      : {
+          content: value.content,
+          mentionUserIds: [...value.mentionUserIds],
+        };
     queryClient.setQueryData(draftQueryKey, normalized);
     const prior = pendingDraftSaves.get(saveScopeKey) ?? Promise.resolve();
     const next = prior
       .catch(() => undefined)
       .then(async () => {
         try {
-          await chatFeatures.saveDraft(
-            conversationId,
-            normalized.content,
-            normalized.mentionUserIds,
-          );
+          if (includeAssistant) {
+            await chatFeatures.saveDraft(
+              conversationId,
+              normalized.content,
+              normalized.mentionUserIds,
+              Boolean(value.assistantMention),
+            );
+          } else {
+            await chatFeatures.saveDraft(
+              conversationId,
+              normalized.content,
+              normalized.mentionUserIds,
+            );
+          }
           if (
             !latest.current ||
             latest.current.content === normalized.content
@@ -117,6 +143,9 @@ export default function ChatDraftComposer({
                 latest.current ?? {
                   content: draft.data.content,
                   mentionUserIds: draft.data.mentionUserIds ?? [],
+                  ...(trackAssistantDraft
+                    ? { assistantMention: Boolean(draft.data.assistantMention) }
+                    : {}),
                 },
               )
             }
@@ -129,8 +158,16 @@ export default function ChatDraftComposer({
         {...props}
         initialValue={draft.data.content}
         initialMentionUserIds={draft.data.mentionUserIds}
-        onDraftChange={(content, mentionUserIds) => {
-          const value = { content, mentionUserIds: [...mentionUserIds] };
+        initialAssistantMention={Boolean(draft.data.assistantMention)}
+        onDraftChange={(content, mentionUserIds, assistantMention) => {
+          const value =
+            assistantMention !== undefined || trackAssistantDraft
+              ? {
+                  content,
+                  mentionUserIds: [...mentionUserIds],
+                  assistantMention: Boolean(assistantMention),
+                }
+              : { content, mentionUserIds: [...mentionUserIds] };
           latest.current = value;
           queryClient.setQueryData(draftQueryKey, value);
           if (timer.current) clearTimeout(timer.current);
@@ -142,7 +179,9 @@ export default function ChatDraftComposer({
         onSend={async (...args) => {
           const success = await props.onSend(...args);
           if (success) {
-            const emptyDraft = { content: "", mentionUserIds: [] };
+            const emptyDraft = trackAssistantDraft
+              ? { content: "", mentionUserIds: [], assistantMention: false }
+              : { content: "", mentionUserIds: [] };
             latest.current = emptyDraft;
             queryClient.setQueryData(draftQueryKey, emptyDraft);
             if (timer.current) clearTimeout(timer.current);

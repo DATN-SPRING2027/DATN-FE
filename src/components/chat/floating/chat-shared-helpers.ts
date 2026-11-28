@@ -7,6 +7,9 @@ import {
   type ChatPage,
   type ChatParticipant,
 } from "@/lib/queries/chat/useChat";
+import { mergeMessage } from "../assistant-utils";
+
+export { mergeMessage };
 
 export type FloatingConnectionState =
   | "connecting"
@@ -148,9 +151,11 @@ export function mergeChatMessage(
   message: ChatMessage,
 ): ChatPage<ChatMessage> {
   const existing = page?.data ?? [];
-  const replaced = existing.some((item) => item.id === message.id)
-    ? existing.map((item) => (item.id === message.id ? message : item))
-    : [...existing, message];
+  const existingItem = existing.find((item) => item.id === message.id);
+  const reconciled = mergeMessage(existingItem, message);
+  const replaced = existingItem
+    ? existing.map((item) => (item.id === reconciled.id ? reconciled : item))
+    : [...existing, reconciled];
   return {
     data: replaced.sort(
       (left, right) =>
@@ -158,6 +163,27 @@ export function mergeChatMessage(
         left.id.localeCompare(right.id),
     ),
     nextCursor: page?.nextCursor ?? null,
+  };
+}
+
+export function mergeOlderChatMessages(
+  page: ChatPage<ChatMessage> | undefined,
+  older: ChatPage<ChatMessage>,
+): ChatPage<ChatMessage> {
+  const byId = new Map<string, ChatMessage>();
+  for (const existingItem of page?.data ?? []) {
+    byId.set(existingItem.id, existingItem);
+  }
+  for (const incomingItem of older.data) {
+    byId.set(incomingItem.id, mergeMessage(byId.get(incomingItem.id), incomingItem));
+  }
+  return {
+    data: [...byId.values()].sort(
+      (left, right) =>
+        Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
+        left.id.localeCompare(right.id),
+    ),
+    nextCursor: older.nextCursor,
   };
 }
 

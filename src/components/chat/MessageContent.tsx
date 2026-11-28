@@ -1,4 +1,6 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
+
+const ASSISTANT_TOKEN_RE = /(^|\s)(@continuumAI)(?=$|[\s.,!?;:)\]])/gu;
 
 export function messageLinks(content: string) {
   return [...content.matchAll(/https?:\/\/[^\s<>]+/giu)].flatMap((match) => {
@@ -14,7 +16,64 @@ export function messageLinks(content: string) {
   });
 }
 
-export default function MessageContent({ content }: { content: string }) {
+function renderTextWithAssistantToken(
+  segment: string,
+  mine: boolean,
+  keyPrefix: string,
+): ReactNode {
+  if (!segment || !segment.includes("@continuumAI")) {
+    return segment;
+  }
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+  let matchIndex = 0;
+  for (const match of segment.matchAll(ASSISTANT_TOKEN_RE)) {
+    const start = match.index ?? 0;
+    const leading = match[1] ?? "";
+    const token = match[2] ?? "@continuumAI";
+    const tokenStart = start + leading.length;
+    if (tokenStart > cursor) {
+      nodes.push(
+        <Fragment key={`${keyPrefix}-t-${matchIndex}`}>
+          {segment.slice(cursor, tokenStart)}
+        </Fragment>,
+      );
+    }
+    nodes.push(
+      <span
+        key={`${keyPrefix}-ai-${matchIndex}`}
+        translate="no"
+        data-testid="message-assistant-mention-token"
+        className={
+          mine
+            ? "inline-block rounded-md bg-brand-700/75 px-1 py-0.5 font-semibold text-white ring-1 ring-white/25"
+            : "inline-block rounded-md bg-brand-100 px-1 py-0.5 font-semibold text-brand-800 dark:bg-brand-500/25 dark:text-brand-200"
+        }
+      >
+        {token}
+      </span>,
+    );
+    cursor = tokenStart + token.length;
+    matchIndex += 1;
+  }
+  if (nodes.length === 0) {
+    return segment;
+  }
+  if (cursor < segment.length) {
+    nodes.push(
+      <Fragment key={`${keyPrefix}-tail`}>{segment.slice(cursor)}</Fragment>,
+    );
+  }
+  return nodes;
+}
+
+export default function MessageContent({
+  content,
+  mine = false,
+}: {
+  content: string;
+  mine?: boolean;
+}) {
   const links = messageLinks(content);
   const last = links.at(-1);
   const suffixStart = last ? last.index + last.text.length : 0;
@@ -29,7 +88,7 @@ export default function MessageContent({ content }: { content: string }) {
           );
           return (
             <Fragment key={link.index}>
-              {prefix}
+              {renderTextWithAssistantToken(prefix, mine, `pre-${index}`)}
               <a
                 className="underline underline-offset-2"
                 href={link.url.href}
@@ -41,7 +100,11 @@ export default function MessageContent({ content }: { content: string }) {
             </Fragment>
           );
         })}
-        {content.slice(suffixStart)}
+        {renderTextWithAssistantToken(
+          content.slice(suffixStart),
+          mine,
+          "suffix",
+        )}
       </p>
       {links.slice(0, 3).map(({ url, index }) => (
         <a

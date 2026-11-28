@@ -11,12 +11,14 @@ import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { chatKeys } from "@/lib/queries/chat/useChat";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import ContinuumAiCompanion from "@/components/ai-companion/ContinuumAiCompanion";
 import { useChatNavigation } from "@/stores/chat-navigation";
 import { useFloatingChatStore } from "@/stores/floating-chat";
+import { clearAssistantStateTombstones } from "../assistant-utils";
 import { resetChatWsCooldown } from "./chat-shared-helpers";
 import FloatingChatDock from "./FloatingChatDock";
 
@@ -150,6 +152,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     useFloatingChatStore.getState().reset();
     useChatNavigation.getState().clear();
     resetChatWsCooldown();
+    clearAssistantStateTombstones();
     api.mockReset();
     routerPushMock.mockReset();
     routeState.pathname = "/projects/507f1f77bcf86cd799439011/work";
@@ -170,6 +173,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
   });
 
   afterEach(() => {
+    clearAssistantStateTombstones();
     vi.unstubAllGlobals();
   });
 
@@ -1166,5 +1170,1189 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     expect(
       await screen.findByTestId(`floating-chat-head-${conv2}`),
     ).toBeInTheDocument();
+  });
+
+  it("supports @continuumAI mention, WS assistant.status, source mutation invalidation, off-page jump, and reconnect reconciliation in MiniChatWindow", async () => {
+    const sampleConv = {
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-28T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      capabilities: { dmAssistantEnabled: true },
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    };
+
+    const triggerId = "507f1f77bcf86cd799439061";
+    const aiReplyId = "507f1f77bcf86cd799439062";
+    const oldSourceId = "507f1f77bcf86cd799439063";
+    let sentBody: Record<string, unknown> | null = null;
+    let messagesFetchCount = 0;
+
+    let serverMessages: Record<string, unknown>[] = [
+      {
+        id: triggerId,
+        conversationId: convId,
+        senderId: actorId,
+        senderName: "Phuc Nguyen",
+        senderAvatarUrl: null,
+        content: "@continuumAI Tóm tắt quyết định hôm qua",
+        createdAt: "2026-11-28T09:00:00.000Z",
+        assistantState: {
+          jobId: "job-mini-1",
+          status: "PENDING",
+          failureCode: null,
+          responseMessageId: null,
+          updatedAt: "2026-11-28T09:00:00.000Z",
+        },
+        editedAt: null,
+        deletedAt: null,
+        replyToMessageId: null,
+        replyTo: null,
+        attachments: [],
+        reactions: [],
+      },
+    ];
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-mini-ai", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        return {
+          data: [sampleConv],
+          nextCursor: null,
+          capabilities: { dmAssistantEnabled: true },
+        };
+      }
+      if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+        messagesFetchCount += 1;
+        return { data: serverMessages, nextCursor: null };
+      }
+      if (
+        path ===
+        `/chat/conversations/${convId}/messages?limit=50&aroundMessageId=${oldSourceId}`
+      ) {
+        return {
+          data: [
+            {
+              id: oldSourceId,
+              conversationId: convId,
+              senderId: "507f1f77bcf86cd799439099",
+              senderName: "Lan Tran",
+              senderAvatarUrl: null,
+              content: "Chốt dời release sang thứ Hai và cập nhật changelog.",
+              createdAt: "2026-11-20T09:00:00.000Z",
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: null,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      if (path === `/chat/conversations/${convId}/draft`) {
+        if (init?.method === "PUT") return { ok: true };
+        return { content: "", mentionUserIds: [], assistantMention: false };
+      }
+      if (
+        path === `/chat/conversations/${convId}/delivered` ||
+        path === `/chat/conversations/${convId}/read`
+      ) {
+        return { ok: true };
+      }
+      if (
+        path === `/chat/conversations/${convId}/messages` &&
+        init?.method === "POST"
+      ) {
+        sentBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return {
+          id: "507f1f77bcf86cd799439069",
+          conversationId: convId,
+          senderId: actorId,
+          senderName: "Phuc Nguyen",
+          senderAvatarUrl: null,
+          content: sentBody.content,
+          createdAt: "2026-11-28T09:05:00.000Z",
+          editedAt: null,
+          deletedAt: null,
+          replyToMessageId: null,
+          replyTo: null,
+          attachments: [],
+          reactions: [],
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    renderWithProviders(<FloatingChatDock />);
+
+    const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+    expect(
+      await within(miniWindow).findByTestId("assistant-trigger-status-pending"),
+    ).toBeInTheDocument();
+
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    const socket = FakeWebSocket.instances[0]!;
+
+    // 1. WS assistant.status updates trigger to PROCESSING then COMPLETED (fetching AI answer)
+    serverMessages = [
+      {
+        ...serverMessages[0]!,
+        assistantState: {
+          jobId: "job-mini-1",
+          status: "COMPLETED",
+          failureCode: null,
+          responseMessageId: aiReplyId,
+          updatedAt: "2026-11-28T09:00:05.000Z",
+        },
+      },
+      {
+        id: aiReplyId,
+        conversationId: convId,
+        senderId: "assistant:continuum_ai",
+        senderName: "Continuum AI",
+        senderAvatarUrl: null,
+        authorType: "ASSISTANT",
+        triggerMessageId: triggerId,
+        assistantStatus: "COMPLETED",
+        assistantFailureCode: null,
+        assistantMeta: {
+          handle: "continuumAI",
+          queryMode: "TIME_WINDOW",
+          partialCoverage: false,
+          coverageNote: null,
+          sourceState: "FRESH",
+        },
+        sourceReferences: [
+          {
+            refId: "M1",
+            messageId: oldSourceId,
+            senderName: "Lan Tran",
+            createdAt: "2026-11-20T09:00:00.000Z",
+            quoteSnippet: "Chốt dời release sang thứ Hai.",
+            status: "ACTIVE",
+          },
+        ],
+        content: "Hai người đã chốt dời release sang thứ Hai [M1].",
+        createdAt: "2026-11-28T09:00:05.000Z",
+        editedAt: null,
+        deletedAt: null,
+        replyToMessageId: triggerId,
+        replyTo: null,
+        attachments: [],
+        reactions: [],
+      },
+    ];
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "assistant.status",
+          data: {
+            conversationId: convId,
+            triggerMessageId: triggerId,
+            jobId: "job-mini-1",
+            status: "COMPLETED",
+            failureCode: null,
+            responseMessageId: aiReplyId,
+            updatedAt: "2026-11-28T09:00:05.000Z",
+          },
+        }),
+      });
+    });
+
+    expect(
+      await within(miniWindow).findByTestId("assistant-message-card"),
+    ).toBeInTheDocument();
+
+    // 2. Opening the evidence dropdown & clicking off-page source chip opens aroundMessageId context inside MiniChatWindow
+    fireEvent.click(
+      within(miniWindow).getByTestId("assistant-sources-toggle"),
+    );
+    fireEvent.click(
+      within(miniWindow).getByTestId("assistant-source-chip-M1"),
+    );
+    expect(
+      await within(miniWindow).findByTestId(
+        `mini-chat-context-banner-${convId}`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await within(miniWindow).findByText(
+        "Chốt dời release sang thứ Hai và cập nhật changelog.",
+      ),
+    ).toBeInTheDocument();
+
+    // Exit context & simulate WS message.deleted -> source badge updates to "Source deleted" and chip disables!
+    fireEvent.click(
+      within(miniWindow).getByRole("button", {
+        name: "Back to latest messages",
+      }),
+    );
+    serverMessages = [
+      serverMessages[0]!,
+      {
+        ...serverMessages[1]!,
+        assistantMeta: {
+          handle: "continuumAI",
+          queryMode: "TIME_WINDOW",
+          partialCoverage: false,
+          coverageNote: null,
+          sourceState: "HAS_DELETED",
+        },
+        sourceReferences: [
+          {
+            refId: "M1",
+            messageId: oldSourceId,
+            senderName: "Lan Tran",
+            createdAt: "2026-11-20T09:00:00.000Z",
+            quoteSnippet: "",
+            status: "DELETED",
+          },
+        ],
+      },
+    ];
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "message.deleted",
+          data: {
+            id: oldSourceId,
+            conversationId: convId,
+            senderId: "507f1f77bcf86cd799439099",
+            senderName: "Lan Tran",
+            senderAvatarUrl: null,
+            content: "",
+            createdAt: "2026-11-20T09:00:00.000Z",
+            editedAt: null,
+            deletedAt: "2026-11-28T09:01:00.000Z",
+            replyToMessageId: null,
+            replyTo: null,
+            attachments: [],
+            reactions: [],
+          },
+        }),
+      });
+    });
+
+    expect(
+      await within(miniWindow).findByTestId("assistant-source-deleted-badge"),
+    ).toBeInTheDocument();
+    const deletedToggle = within(miniWindow).getByTestId(
+      "assistant-sources-toggle",
+    );
+    if (deletedToggle.getAttribute("aria-expanded") !== "true") {
+      fireEvent.click(deletedToggle);
+    }
+    expect(
+      within(miniWindow).getByTestId("assistant-source-chip-M1"),
+    ).toBeDisabled();
+
+    // 3. Reconnecting WS invalidates open mini chat messages for reconciliation
+    const fetchesBeforeReconnect = messagesFetchCount;
+    await act(async () => {
+      socket.onmessage?.({ data: JSON.stringify({ event: "connected" }) });
+    });
+    await waitFor(() =>
+      expect(messagesFetchCount).toBeGreaterThan(fetchesBeforeReconnect),
+    );
+
+    // 4. Selecting @continuumAI in MiniChatWindow composer sends structured assistantMention
+    const input = await within(miniWindow).findByPlaceholderText(
+      "Write a message…",
+    );
+    fireEvent.change(input, { target: { value: "@cont" } });
+    fireEvent.click(
+      within(miniWindow).getByTestId("mention-option-continuum-ai"),
+    );
+    fireEvent.change(input, {
+      target: { value: "@continuumAI Ai phụ trách PAY-123?" },
+    });
+    fireEvent.click(
+      within(miniWindow).getByRole("button", { name: "Send message" }),
+    );
+    await waitFor(() =>
+      expect(sentBody).toMatchObject({
+        content: "@continuumAI Ai phụ trách PAY-123?",
+        assistantMention: {
+          handle: "continuumAI",
+          query: "Ai phụ trách PAY-123?",
+          timezone: expect.any(String),
+        },
+      }),
+    );
+  });
+
+  it("enforces monotonic assistantState against late WS PENDING and terminal WS events arriving before POST resolves in MiniChatWindow", async () => {
+    const sampleConv = {
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-28T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      capabilities: { dmAssistantEnabled: true },
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    };
+
+    const triggerId = "507f1f77bcf86cd799439161";
+    const aiReplyId = "507f1f77bcf86cd799439162";
+    const raceTriggerId = "507f1f77bcf86cd799439163";
+    let resolvePost!: (value: unknown) => void;
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-mini-mono", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        return {
+          data: [sampleConv],
+          nextCursor: null,
+          capabilities: { dmAssistantEnabled: true },
+        };
+      }
+      if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+        return {
+          data: [
+            {
+              id: triggerId,
+              conversationId: convId,
+              senderId: actorId,
+              senderName: "Phuc Nguyen",
+              senderAvatarUrl: null,
+              content: "@continuumAI Status",
+              createdAt: "2026-11-28T09:00:00.000Z",
+              assistantState: {
+                jobId: "job-mini-mono-1",
+                status: "PROCESSING",
+                failureCode: null,
+                responseMessageId: null,
+                updatedAt: "2026-11-28T09:00:01.000Z",
+              },
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: null,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+            {
+              id: aiReplyId,
+              conversationId: convId,
+              senderId: "assistant:continuum_ai",
+              senderName: "Continuum AI",
+              senderAvatarUrl: null,
+              authorType: "ASSISTANT",
+              triggerMessageId: triggerId,
+              assistantStatus: "COMPLETED",
+              assistantFailureCode: null,
+              assistantMeta: {
+                handle: "continuumAI",
+                queryMode: "KEYWORD",
+                partialCoverage: false,
+                coverageNote: null,
+                sourceState: "FRESH",
+              },
+              sourceReferences: [],
+              content: "Done.",
+              createdAt: "2026-11-28T09:00:05.000Z",
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: triggerId,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      if (path === `/chat/conversations/${convId}/draft`) {
+        if (init?.method === "PUT") return { ok: true };
+        return { content: "", mentionUserIds: [], assistantMention: false };
+      }
+      if (
+        path === `/chat/conversations/${convId}/delivered` ||
+        path === `/chat/conversations/${convId}/read`
+      ) {
+        return { ok: true };
+      }
+      if (
+        path === `/chat/conversations/${convId}/messages` &&
+        init?.method === "POST"
+      ) {
+        return await new Promise((resolve) => {
+          resolvePost = resolve;
+        });
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    renderWithProviders(<FloatingChatDock />);
+
+    const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+    expect(
+      await within(miniWindow).findByTestId(
+        "assistant-trigger-status-processing",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    const socket = FakeWebSocket.instances[0]!;
+
+    // (a) WS COMPLETED -> late out-of-order WS PENDING stays COMPLETED
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "assistant.status",
+          data: {
+            conversationId: convId,
+            triggerMessageId: triggerId,
+            jobId: "job-mini-mono-1",
+            status: "COMPLETED",
+            failureCode: null,
+            responseMessageId: aiReplyId,
+            updatedAt: "2026-11-28T09:00:05.000Z",
+          },
+        }),
+      });
+    });
+    await waitFor(() =>
+      expect(
+        within(miniWindow).queryByTestId("assistant-trigger-status-processing"),
+      ).not.toBeInTheDocument(),
+    );
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "assistant.status",
+          data: {
+            conversationId: convId,
+            triggerMessageId: triggerId,
+            jobId: "job-mini-mono-1",
+            status: "PENDING",
+            failureCode: null,
+            responseMessageId: null,
+            updatedAt: "2026-11-28T09:00:00.000Z",
+          },
+        }),
+      });
+    });
+    expect(
+      within(miniWindow).queryByTestId("assistant-trigger-status-pending"),
+    ).not.toBeInTheDocument();
+
+    // (b) WS CANCELLED arriving BEFORE POST /messages resolves keeps trigger terminal
+    fireEvent.click(
+      await within(miniWindow).findByTestId("chat-composer-ai-trigger"),
+    );
+    const input = within(miniWindow).getByPlaceholderText("Write a message…");
+    fireEvent.change(input, {
+      target: { value: "@continuumAI Mini race check" },
+    });
+    fireEvent.click(
+      within(miniWindow).getByRole("button", { name: "Send message" }),
+    );
+    await waitFor(() => expect(resolvePost).toBeDefined());
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "assistant.status",
+          data: {
+            conversationId: convId,
+            triggerMessageId: raceTriggerId,
+            jobId: "job-mini-race",
+            status: "CANCELLED",
+            failureCode: "SOURCE_CHANGED",
+            responseMessageId: null,
+            updatedAt: "2026-11-28T09:02:04.000Z",
+          },
+        }),
+      });
+    });
+
+    await act(async () => {
+      resolvePost({
+        id: raceTriggerId,
+        conversationId: convId,
+        senderId: actorId,
+        senderName: "Phuc Nguyen",
+        senderAvatarUrl: null,
+        content: "@continuumAI Mini race check",
+        createdAt: "2026-11-28T09:02:00.000Z",
+        assistantState: {
+          jobId: "job-mini-race",
+          status: "PENDING",
+          failureCode: null,
+          responseMessageId: null,
+          updatedAt: "2026-11-28T09:02:00.000Z",
+        },
+        editedAt: null,
+        deletedAt: null,
+        replyToMessageId: null,
+        replyTo: null,
+        attachments: [],
+        reactions: [],
+      });
+    });
+
+    expect(
+      await within(miniWindow).findByTestId(
+        "assistant-trigger-status-cancelled-source_changed",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(miniWindow).queryByTestId("assistant-trigger-status-pending"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reuses retry clientMessageId across network errors, ignores unrelated composer reply draft, and invalidates capabilities on CHAT_AI_NOT_ENABLED in MiniChatWindow", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    let dmAssistantEnabled = true;
+    const makeSampleConv = () => ({
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-28T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      capabilities: { dmAssistantEnabled },
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    });
+
+    const unrelatedPeerMsgId = "507f1f77bcf86cd799439201";
+    const failedTriggerId = "507f1f77bcf86cd799439202";
+    const sentPayloads: Array<{
+      clientMessageId: string;
+      replyToMessageId?: string;
+    }> = [];
+    let postCallCount = 0;
+    let convFetchCount = 0;
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-mini-retry", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        convFetchCount += 1;
+        return {
+          data: [makeSampleConv()],
+          nextCursor: null,
+          capabilities: { dmAssistantEnabled },
+        };
+      }
+      if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+        return {
+          data: [
+            {
+              id: unrelatedPeerMsgId,
+              conversationId: convId,
+              senderId: "507f1f77bcf86cd799439099",
+              senderName: "Lan Tran",
+              senderAvatarUrl: null,
+              content: "Unrelated peer message for composer reply",
+              createdAt: "2026-11-28T09:00:00.000Z",
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: null,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+            {
+              id: failedTriggerId,
+              conversationId: convId,
+              senderId: actorId,
+              senderName: "Phuc Nguyen",
+              senderAvatarUrl: null,
+              content: "@continuumAI Summarize decisions",
+              createdAt: "2026-11-28T09:01:00.000Z",
+              assistantMention: {
+                handle: "continuumAI",
+                query: "Summarize decisions",
+                timezone: "Asia/Ho_Chi_Minh",
+              },
+              assistantState: {
+                jobId: "job-mini-fail",
+                status: "FAILED",
+                failureCode: "SERVICE_UNAVAILABLE",
+                responseMessageId: null,
+                updatedAt: "2026-11-28T09:01:05.000Z",
+              },
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: null,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      if (path === `/chat/conversations/${convId}/draft`) {
+        if (init?.method === "PUT") return { ok: true };
+        return { content: "", mentionUserIds: [], assistantMention: false };
+      }
+      if (
+        path === `/chat/conversations/${convId}/delivered` ||
+        path === `/chat/conversations/${convId}/read`
+      ) {
+        return { ok: true };
+      }
+      if (
+        path === `/chat/conversations/${convId}/messages` &&
+        init?.method === "POST"
+      ) {
+        postCallCount += 1;
+        const body = JSON.parse(String(init.body)) as {
+          clientMessageId: string;
+          replyToMessageId?: string;
+        };
+        sentPayloads.push({
+          clientMessageId: body.clientMessageId,
+          replyToMessageId: body.replyToMessageId,
+        });
+        if (postCallCount === 1) {
+          throw new Error("Network failure");
+        }
+        if (postCallCount === 2) {
+          return {
+            id: "507f1f77bcf86cd799439209",
+            conversationId: convId,
+            senderId: actorId,
+            senderName: "Phuc Nguyen",
+            senderAvatarUrl: null,
+            content: "@continuumAI Summarize decisions",
+            createdAt: "2026-11-28T09:02:00.000Z",
+            assistantState: {
+              jobId: "job-mini-retried",
+              status: "PENDING",
+              failureCode: null,
+              responseMessageId: null,
+              updatedAt: "2026-11-28T09:02:00.000Z",
+            },
+            editedAt: null,
+            deletedAt: null,
+            replyToMessageId: null,
+            replyTo: null,
+            attachments: [],
+            reactions: [],
+          };
+        }
+        dmAssistantEnabled = false;
+        throw new ApiError(403, "CHAT_AI_NOT_ENABLED", "Disabled");
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    renderWithProviders(<FloatingChatDock />);
+
+    const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+    expect(
+      await within(miniWindow).findByText(
+        "Unrelated peer message for composer reply",
+      ),
+    ).toBeInTheDocument();
+
+    // Start replying to the unrelated peer message in the draft composer
+    const peerBubble = miniWindow.querySelector(
+      `[data-message-id="${unrelatedPeerMsgId}"]`,
+    ) as HTMLElement;
+    fireEvent.click(
+      within(peerBubble).getByRole("button", { name: "Message actions" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Reply" }));
+    expect(
+      await within(miniWindow).findByText("Replying to Lan Tran"),
+    ).toBeInTheDocument();
+
+    // Retry failed AI trigger -> 1st fails (network), 2nd succeeds with IDENTICAL clientMessageId and NO draft replyToMessageId!
+    const retryBtn = within(miniWindow).getByRole("button", {
+      name: messages.chat.assistantRetryAction,
+    });
+    fireEvent.click(retryBtn);
+    await waitFor(() => expect(sentPayloads).toHaveLength(1));
+
+    fireEvent.click(retryBtn);
+    await waitFor(() => expect(sentPayloads).toHaveLength(2));
+    expect(sentPayloads[1]!.clientMessageId).toBe(
+      sentPayloads[0]!.clientMessageId,
+    );
+    expect(sentPayloads[0]!.replyToMessageId).toBeUndefined();
+    expect(sentPayloads[1]!.replyToMessageId).toBeUndefined();
+    // Unrelated composer reply banner stays intact!
+    expect(
+      within(miniWindow).getByText("Replying to Lan Tran"),
+    ).toBeInTheDocument();
+
+    // CHAT_AI_NOT_ENABLED on a subsequent assistant send immediately invalidates conversations and hides @continuumAI
+    const fetchesBeforeDisabled = convFetchCount;
+    fireEvent.click(
+      within(miniWindow).getByTestId("chat-composer-ai-trigger"),
+    );
+    const input = within(miniWindow).getByPlaceholderText("Write a message…");
+    fireEvent.change(input, {
+      target: { value: "@continuumAI Still enabled?" },
+    });
+    fireEvent.click(
+      within(miniWindow).getByRole("button", { name: "Send message" }),
+    );
+
+    await waitFor(() =>
+      expect(convFetchCount).toBeGreaterThan(fetchesBeforeDisabled),
+    );
+    await waitFor(() =>
+      expect(
+        within(miniWindow).queryByTestId("chat-composer-ai-trigger"),
+      ).not.toBeInTheDocument(),
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("does not resurrect deleted trigger or overwrite newer edit when late POST resolves in MiniChatWindow", async () => {
+    const sampleConv = {
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-28T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      capabilities: { dmAssistantEnabled: true },
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    };
+
+    const deleteRaceId = "507f1f77bcf86cd799439301";
+    const editRaceId = "507f1f77bcf86cd799439302";
+    let serverMessages: Record<string, unknown>[] = [];
+    const pendingPosts: Array<(value: unknown) => void> = [];
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-mini-race-del-edit", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        return {
+          data: [sampleConv],
+          nextCursor: null,
+          capabilities: { dmAssistantEnabled: true },
+        };
+      }
+      if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+        return { data: serverMessages, nextCursor: null };
+      }
+      if (path === `/chat/conversations/${convId}/draft`) {
+        if (init?.method === "PUT") return { ok: true };
+        return { content: "", mentionUserIds: [], assistantMention: false };
+      }
+      if (
+        path === `/chat/conversations/${convId}/delivered` ||
+        path === `/chat/conversations/${convId}/read`
+      ) {
+        return { ok: true };
+      }
+      if (
+        path === `/chat/conversations/${convId}/messages` &&
+        init?.method === "POST"
+      ) {
+        return await new Promise((resolve) => {
+          pendingPosts.push(resolve);
+        });
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    const { client } = renderWithProviders(<FloatingChatDock />);
+
+    const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+    const input = await within(miniWindow).findByPlaceholderText(
+      "Write a message…",
+    );
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    const socket = FakeWebSocket.instances[0]!;
+
+    // (a) WS message.deleted arrives before late POST resolves
+    fireEvent.change(input, {
+      target: { value: "@continuumAI Mini delete race" },
+    });
+    fireEvent.click(
+      within(miniWindow).getByRole("button", { name: "Send message" }),
+    );
+    await waitFor(() => expect(pendingPosts).toHaveLength(1));
+
+    const deletedPayload = {
+      id: deleteRaceId,
+      conversationId: convId,
+      senderId: actorId,
+      senderName: "Phuc Nguyen",
+      senderAvatarUrl: null,
+      content: "",
+      createdAt: "2026-11-28T09:02:00.000Z",
+      editedAt: null,
+      deletedAt: "2026-11-28T09:02:03.000Z",
+      replyToMessageId: null,
+      replyTo: null,
+      attachments: [],
+      reactions: [],
+    };
+    serverMessages = [deletedPayload];
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "message.deleted",
+          data: deletedPayload,
+        }),
+      });
+    });
+
+    await act(async () => {
+      pendingPosts[0]!({
+        id: deleteRaceId,
+        conversationId: convId,
+        senderId: actorId,
+        senderName: "Phuc Nguyen",
+        senderAvatarUrl: null,
+        content: "@continuumAI Mini delete race",
+        createdAt: "2026-11-28T09:02:00.000Z",
+        assistantState: {
+          jobId: "job-mini-del",
+          status: "PENDING",
+          failureCode: null,
+          responseMessageId: null,
+          updatedAt: "2026-11-28T09:02:00.000Z",
+        },
+        editedAt: null,
+        deletedAt: null,
+        replyToMessageId: null,
+        replyTo: null,
+        attachments: [],
+        reactions: [],
+      });
+    });
+
+    expect(
+      await within(miniWindow).findByText(messages.chat.messageDeleted),
+    ).toBeInTheDocument();
+    expect(
+      within(miniWindow).queryByText("@continuumAI Mini delete race"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(miniWindow).queryByTestId("assistant-trigger-status-pending"),
+    ).not.toBeInTheDocument();
+    const cachedDel = (
+      client.getQueryData<{ data: Array<Record<string, unknown>> }>(
+        chatKeys.messages(orgId, convId),
+      )?.data ?? []
+    ).find((m) => m.id === deleteRaceId);
+    expect(cachedDel?.deletedAt).toBe("2026-11-28T09:02:03.000Z");
+    expect(cachedDel?.content).toBe("");
+    expect(cachedDel?.assistantState).toBeUndefined();
+
+    // (b) WS message.updated arrives before late POST resolves
+    fireEvent.change(input, {
+      target: { value: "@continuumAI Mini edit original" },
+    });
+    fireEvent.click(
+      within(miniWindow).getByRole("button", { name: "Send message" }),
+    );
+    await waitFor(() => expect(pendingPosts).toHaveLength(2));
+
+    const editedPayload = {
+      id: editRaceId,
+      conversationId: convId,
+      senderId: actorId,
+      senderName: "Phuc Nguyen",
+      senderAvatarUrl: null,
+      content: "Mini edited content before POST resolved",
+      createdAt: "2026-11-28T09:03:00.000Z",
+      contentVersion: 2,
+      isEdited: true,
+      editedAt: "2026-11-28T09:03:04.000Z",
+      deletedAt: null,
+      replyToMessageId: null,
+      replyTo: null,
+      attachments: [],
+      reactions: [],
+    };
+    serverMessages = [deletedPayload, editedPayload];
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "message.updated",
+          data: editedPayload,
+        }),
+      });
+    });
+
+    await act(async () => {
+      pendingPosts[1]!({
+        id: editRaceId,
+        conversationId: convId,
+        senderId: actorId,
+        senderName: "Phuc Nguyen",
+        senderAvatarUrl: null,
+        content: "@continuumAI Mini edit original",
+        createdAt: "2026-11-28T09:03:00.000Z",
+        contentVersion: 1,
+        isEdited: false,
+        editedAt: null,
+        deletedAt: null,
+        replyToMessageId: null,
+        replyTo: null,
+        attachments: [],
+        reactions: [],
+      });
+    });
+
+    expect(
+      await within(miniWindow).findByText(
+        "Mini edited content before POST resolved",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(miniWindow).queryByText("@continuumAI Mini edit original"),
+    ).not.toBeInTheDocument();
+    const cachedEdited = (
+      client.getQueryData<{ data: Array<Record<string, unknown>> }>(
+        chatKeys.messages(orgId, convId),
+      )?.data ?? []
+    ).find((m) => m.id === editRaceId);
+    expect(cachedEdited?.content).toBe(
+      "Mini edited content before POST resolved",
+    );
+    expect(cachedEdited?.editedAt).toBe("2026-11-28T09:03:04.000Z");
+    expect(cachedEdited?.contentVersion).toBe(2);
+    expect(cachedEdited?.isEdited).toBe(true);
+  });
+
+  it("does not let stale disabled cached conversation detail dmAssistantEnabled=true override a fresher list dmAssistantEnabled=false in MiniChatWindow", async () => {
+    const staleDetailConv = {
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-28T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      capabilities: { dmAssistantEnabled: true },
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    };
+
+    const freshListConv = {
+      ...staleDetailConv,
+      capabilities: { dmAssistantEnabled: false },
+    };
+
+    let detailFetchCount = 0;
+    let listFetchCount = 0;
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-cap-stale-detail", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        listFetchCount += 1;
+        return {
+          data: [freshListConv],
+          nextCursor: null,
+          capabilities: { dmAssistantEnabled: false },
+        };
+      }
+      if (path === `/chat/conversations/${convId}`) {
+        detailFetchCount += 1;
+        return staleDetailConv;
+      }
+      if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+        return { data: [], nextCursor: null };
+      }
+      if (path === `/chat/conversations/${convId}/draft`) {
+        return { content: "", mentionUserIds: [], assistantMention: false };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    // Pre-populate stale cached detail from an earlier Full Chat visit with dmAssistantEnabled: true
+    client.setQueryData(chatKeys.conversation(orgId, convId), staleDetailConv, {
+      updatedAt: Date.now() - 60_000,
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <FloatingChatDock />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+
+    // Wait for list query to populate conversationMap before opening MiniChatWindow so detailQuery stays disabled
+    await waitFor(() => expect(listFetchCount).toBeGreaterThanOrEqual(1));
+    await act(async () => {
+      useFloatingChatStore.getState().openConversation(orgId, convId);
+    });
+
+    const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+    await within(miniWindow).findByPlaceholderText("Write a message…");
+    expect(detailFetchCount).toBe(0);
+    // Fresh list says dmAssistantEnabled: false while detail query is disabled & stale -> @continuumAI trigger stays hidden!
+    expect(
+      within(miniWindow).queryByTestId("chat-composer-ai-trigger"),
+    ).not.toBeInTheDocument();
+    client.clear();
   });
 });

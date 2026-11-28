@@ -10,19 +10,28 @@ import {
   GroupIcon,
   MinusIcon,
 } from "@/icons";
-import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { chatFeatures } from "@/lib/queries/chat/features";
 import {
   chatApi,
   chatKeys,
   useChatMessageContextQuery,
   useChatMessagesQuery,
+  type ChatAssistantMentionInput,
   type ChatAttachment,
+  type ChatCapabilities,
   type ChatConversation,
   type ChatMessage,
   type ChatPage,
 } from "@/lib/queries/chat/useChat";
 import { useChatNavigation } from "@/stores/chat-navigation";
+import {
+  buildAssistantRetryFingerprint,
+  getAssistantRetryPayload,
+  invalidateConversationMessageQueries,
+  resolveChatSendErrorKey,
+  resolveFreshDmAssistantCapability,
+} from "../assistant-utils";
 import ChatAvatar from "../ChatAvatar";
 import ChatDraftComposer from "../ChatDraftComposer";
 import ChatMessageBubble from "../ChatMessageBubble";
@@ -33,6 +42,7 @@ import {
   getConversationPeer,
   hasParticipantDelivered,
   mergeChatMessage,
+  mergeOlderChatMessages,
   type FloatingConnectionState,
 } from "./chat-shared-helpers";
 
@@ -46,6 +56,8 @@ export type MiniChatWindowProps = Readonly<{
   actorId: string;
   conversationId: string;
   conversation?: ChatConversation;
+  capabilities?: ChatCapabilities;
+  capabilitiesUpdatedAt?: number;
   highlightedMessageId?: string;
   contextMessageId?: string;
   typingUsers?: Readonly<Record<string, string>>;
@@ -65,6 +77,8 @@ export default function MiniChatWindow({
   actorId,
   conversationId,
   conversation,
+  capabilities,
+  capabilitiesUpdatedAt,
   highlightedMessageId = "",
   contextMessageId = "",
   typingUsers = EMPTY_TYPING_USERS,
@@ -84,7 +98,7 @@ export default function MiniChatWindow({
 
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [sendError, setSendError] = useState(false);
+  const [sendErrorKey, setSendErrorKey] = useState<string | null>(null);
   const [messageActionError, setMessageActionError] = useState(false);
   const [isLoadingEarlier, setIsLoadingEarlier] = useState(false);
   const [olderMessagesError, setOlderMessagesError] = useState(false);
@@ -96,17 +110,25 @@ export default function MiniChatWindow({
   const pendingUploads = useRef(
     new Map<string, { fingerprint: string; ids: string[] }>(),
   );
+  const pendingAssistantRetries = useRef(
+    new Map<string, { fingerprint: string; clientMessageId: string }>(),
+  );
 
+  const detailQueryEnabled = Boolean(
+    !conversation && organizationId && conversationId,
+  );
   const detailQuery = useQuery({
-    queryKey: ["chat", organizationId, "detail", conversationId],
+    queryKey: chatKeys.conversation(organizationId, conversationId),
     queryFn: () => chatFeatures.conversation(conversationId),
-    enabled: Boolean(!conversation && organizationId && conversationId),
+    enabled: detailQueryEnabled,
     retry: false,
   });
 
   const detailAccessLost = isAccessOrResourceUnavailableError(detailQuery.error);
-  const activeConversation =
-    conversation ?? (detailAccessLost ? undefined : detailQuery.data);
+  const visibleConversationDetail = detailAccessLost
+    ? undefined
+    : detailQuery.data;
+  const activeConversation = conversation ?? visibleConversationDetail;
 
   const messagesQuery = useChatMessagesQuery(organizationId, conversationId, {
     refetchInterval: IS_TEST_ENV
@@ -160,6 +182,32 @@ export default function MiniChatWindow({
     getConversationDisplayName(activeConversation, actorId) || t("title");
   const isOnline = Boolean(peer?.isOnline);
   const activeType = activeConversation?.type;
+  const freshDetailCapabilities =
+    visibleConversationDetail?.id === conversationId
+      ? visibleConversationDetail.capabilities
+      : undefined;
+  const listCapabilities = conversation?.capabilities ?? capabilities;
+  const listDataUpdatedAt =
+    capabilitiesUpdatedAt ??
+    queryClient.getQueryState(chatKeys.conversations(organizationId))
+      ?.dataUpdatedAt ??
+    0;
+  const dmAssistantEnabled = resolveFreshDmAssistantCapability({
+    conversation: activeConversation,
+    detail: {
+      capabilities: freshDetailCapabilities,
+      dataUpdatedAt: detailQuery.dataUpdatedAt,
+      enabled: detailQueryEnabled,
+    },
+    list: {
+      capabilities: listCapabilities,
+      dataUpdatedAt: listDataUpdatedAt,
+      enabled: Boolean(
+        organizationId &&
+          (conversation !== undefined || capabilities !== undefined),
+      ),
+    },
+  });
 
   const typingNames = Object.values(typingUsers);
   const typingStatus =
@@ -362,13 +410,9 @@ export default function MiniChatWindow({
       const targetKey = useContextFeed
         ? chatKeys.context(organizationId, conversationId, effectiveContextId)
         : chatKeys.messages(organizationId, conversationId);
-      queryClient.setQueryData<ChatPage<ChatMessage>>(targetKey, (page) => ({
-        data: [...older.data, ...(page?.data ?? [])].filter(
-          (message, index, all) =>
-            all.findIndex((item) => item.id === message.id) === index,
-        ),
-        nextCursor: older.nextCursor,
-      }));
+      queryClient.setQueryData<ChatPage<ChatMessage>>(targetKey, (page) =>
+        mergeOlderChatMessages(page, older),
+      );
       requestAnimationFrame(() => {
         const current = scrollRef.current;
         if (current) {
@@ -393,12 +437,14 @@ export default function MiniChatWindow({
     content: string,
     clientMessageId: string,
     files: readonly File[] = [],
+    replyToMessageId?: string,
     mentionUserIds: readonly string[] = [],
+    assistantMention?: ChatAssistantMentionInput,
+    clearDraftReply = true,
   ): Promise<boolean> => {
     if (!conversationId) return false;
-    const replyToMessageId = replyingTo?.id;
     setIsSending(true);
-    setSendError(false);
+    setSendErrorKey(null);
     try {
       const fingerprint = files
         .map(
@@ -423,6 +469,7 @@ export default function MiniChatWindow({
         ...(pending.ids.length > 0 ? { attachments: pending.ids } : {}),
         ...(replyToMessageId ? { replyToMessageId } : {}),
         mentionUserIds,
+        ...(assistantMention ? { assistantMention } : {}),
       });
       pendingUploads.current.delete(clientMessageId);
       queryClient.setQueryData<ChatPage<ChatMessage>>(
@@ -432,7 +479,7 @@ export default function MiniChatWindow({
       if (contextMessageId) {
         onExitContext();
       }
-      if (replyToMessageId) {
+      if (clearDraftReply && replyToMessageId) {
         setReplyingTo((current) =>
           current?.id === replyToMessageId ? null : current,
         );
@@ -443,11 +490,49 @@ export default function MiniChatWindow({
       return true;
     } catch (error) {
       console.error("Failed to send chat message:", error);
-      setSendError(true);
+      setSendErrorKey(resolveChatSendErrorKey(error));
+      if (error instanceof ApiError && error.code === "CHAT_AI_NOT_ENABLED") {
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.conversations(organizationId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.conversation(organizationId, conversationId),
+        });
+      }
       return false;
     } finally {
       setIsSending(false);
     }
+  };
+
+  const retryAssistantMessage = async (
+    triggerMessage: ChatMessage,
+  ): Promise<boolean> => {
+    const payload = getAssistantRetryPayload(triggerMessage);
+    if (!payload) return false;
+    const fingerprint = buildAssistantRetryFingerprint(triggerMessage, payload);
+    const existing = pendingAssistantRetries.current.get(triggerMessage.id);
+    const clientMessageId =
+      existing?.fingerprint === fingerprint
+        ? existing.clientMessageId
+        : crypto.randomUUID();
+    pendingAssistantRetries.current.set(triggerMessage.id, {
+      fingerprint,
+      clientMessageId,
+    });
+    const sent = await sendMessage(
+      payload.content,
+      clientMessageId,
+      [],
+      triggerMessage.replyToMessageId ?? undefined,
+      [],
+      payload.assistantMention,
+      false,
+    );
+    if (sent) {
+      pendingAssistantRetries.current.delete(triggerMessage.id);
+    }
+    return sent;
   };
 
   const saveMessageEdit = async (
@@ -474,9 +559,11 @@ export default function MiniChatWindow({
         chatKeys.messages(organizationId, conversationId),
         (page) => mergeChatMessage(page, updated),
       );
-      await queryClient.invalidateQueries({
-        queryKey: chatKeys.messages(organizationId, conversationId),
-      });
+      await invalidateConversationMessageQueries(
+        queryClient,
+        organizationId,
+        conversationId,
+      );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.conversations(organizationId),
       });
@@ -496,9 +583,11 @@ export default function MiniChatWindow({
         chatKeys.messages(organizationId, conversationId),
         (page) => mergeChatMessage(page, updated),
       );
-      await queryClient.invalidateQueries({
-        queryKey: chatKeys.messages(organizationId, conversationId),
-      });
+      await invalidateConversationMessageQueries(
+        queryClient,
+        organizationId,
+        conversationId,
+      );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.conversations(organizationId),
       });
@@ -555,7 +644,7 @@ export default function MiniChatWindow({
       aria-label={displayName}
       data-connection={connection}
       data-testid={`mini-chat-window-${conversationId}`}
-      className="relative flex h-[min(28rem,calc(100dvh-5rem))] w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl sm:w-84 sm:rounded-b-none sm:border-b-0 dark:border-gray-800 dark:bg-gray-900"
+      className="relative flex h-[min(30rem,calc(100dvh-4.5rem))] w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white ring-1 ring-gray-900/5 shadow-theme-xl sm:h-[min(33rem,calc(100dvh-5rem))] sm:w-84 sm:rounded-b-none sm:border-b-0 dark:border-gray-800 dark:bg-gray-900 dark:ring-white/10"
     >
       {/* Compact Messenger-style Header */}
       <header className="flex shrink-0 items-center justify-between gap-1 border-b border-gray-100 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900">
@@ -566,7 +655,7 @@ export default function MiniChatWindow({
             title={t("backToConversations")}
             aria-label={t("backToConversations")}
             data-testid={`mini-chat-back-${conversationId}`}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 dark:text-brand-400 dark:hover:bg-gray-800"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-gray-800"
           >
             <ChevronLeftIcon className="h-5 w-5 rtl:rotate-180" />
           </button>
@@ -580,7 +669,7 @@ export default function MiniChatWindow({
                 openFullChatTarget(conversationId, fullChatContextId);
               }
             }}
-            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1 text-start transition hover:bg-gray-100/80 dark:hover:bg-gray-800/60"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-xl px-1.5 py-1 text-start transition hover:bg-gray-100/80 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:hover:bg-gray-800/60"
           >
             <div className="relative shrink-0">
               <ChatAvatar
@@ -630,7 +719,7 @@ export default function MiniChatWindow({
             onClick={onMinimize}
             title={t("minimizeChat")}
             aria-label={t("minimizeChat")}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 dark:text-brand-400 dark:hover:bg-gray-800"
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-gray-800"
           >
             <MinusIcon className="h-4.5 w-4.5" />
           </button>
@@ -639,7 +728,7 @@ export default function MiniChatWindow({
             onClick={onClose}
             title={t("close")}
             aria-label={t("closeChatWindow", { name: displayName })}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 hover:text-error-600 dark:text-brand-400 dark:hover:bg-gray-800 dark:hover:text-error-400"
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 hover:text-error-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-gray-800 dark:hover:text-error-400"
           >
             <CloseLineIcon className="h-4.5 w-4.5" />
           </button>
@@ -663,7 +752,7 @@ export default function MiniChatWindow({
                 });
               });
             }}
-            className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900"
+            className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-semibold hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:hover:bg-brand-900"
           >
             {t("backToLatest")}
           </button>
@@ -671,13 +760,13 @@ export default function MiniChatWindow({
       )}
 
       {/* Error Banners */}
-      {(sendError || messageActionError || olderMessagesError) && (
+      {(sendErrorKey || messageActionError || olderMessagesError) && (
         <div
           role="alert"
           className="shrink-0 border-b border-error-100 bg-error-50 px-3 py-1.5 text-xs text-error-700 dark:border-error-500/20 dark:bg-error-500/10 dark:text-error-300"
         >
-          {sendError
-            ? t("sendError")
+          {sendErrorKey
+            ? t(sendErrorKey)
             : olderMessagesError
               ? t("messageError")
               : t("messageActionError")}
@@ -756,6 +845,7 @@ export default function MiniChatWindow({
                 key={message.id}
                 message={message}
                 mine={mine}
+                compact
                 showSender={activeType === "ROOM" && !mine}
                 groupStart={groupStart}
                 groupEnd={groupEnd}
@@ -763,6 +853,9 @@ export default function MiniChatWindow({
                 receipt={receipt}
                 conversationImages={conversationImages}
                 onOpenContext={scrollToQuotedMessage}
+                onRetryAssistant={
+                  dmAssistantEnabled ? retryAssistantMessage : undefined
+                }
                 onReply={() => setReplyingTo(message)}
                 onEdit={(content) => saveMessageEdit(message.id, content)}
                 onDelete={() => deleteChatMessage(message.id)}
@@ -779,6 +872,8 @@ export default function MiniChatWindow({
       <ChatDraftComposer
         key={conversationId}
         compact
+        currentUserId={actorId}
+        dmAssistantEnabled={dmAssistantEnabled}
         organizationId={organizationId}
         conversationId={conversationId}
         isSending={isSending}
@@ -798,7 +893,23 @@ export default function MiniChatWindow({
         onCancelReply={() => setReplyingTo(null)}
         members={activeConversation?.members ?? []}
         onTyping={handleComposerTyping}
-        onSend={sendMessage}
+        onSend={(
+          content,
+          clientMessageId,
+          files,
+          mentionUserIds,
+          assistantMention,
+        ) =>
+          sendMessage(
+            content,
+            clientMessageId,
+            files,
+            replyingTo?.id,
+            mentionUserIds,
+            assistantMention,
+            true,
+          )
+        }
       />
     </section>
   );

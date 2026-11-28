@@ -17,6 +17,8 @@ import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
   chatApi,
   chatKeys,
+  isAssistantMessage,
+  type ChatAssistantMentionInput,
   type ChatAttachment,
   type ChatCandidate,
   type ChatConversation,
@@ -45,6 +47,8 @@ import {
   acquireSharedChatWsTicket,
   getChatWsCooldownRemainingMs,
   getChatWsPolicyFailureCooldownMs,
+  mergeChatMessage,
+  mergeOlderChatMessages,
   recordChatWsConnectionFailure,
   resetChatWsCooldown,
   resolveChatRealtimeWsUrl,
@@ -56,6 +60,16 @@ import { sameMessageGroup } from "./message-layout";
 import { preserveLocalReactions } from "./message-state";
 import { hasReadMessage } from "./read-receipt";
 import { foldSearchText } from "./search-text";
+import {
+  applyAssistantStatusToCaches,
+  buildAssistantRetryFingerprint,
+  getAssistantRetryPayload,
+  invalidateConversationMessageQueries,
+  isAssistantStatusEvent,
+  resolveChatSendErrorKey,
+  resolveFreshDmAssistantCapability,
+  syncTriggerStateFromAssistantMessage,
+} from "./assistant-utils";
 
 type ComposeMode = "direct" | "room" | null;
 type ConnectionState = "connecting" | "connected" | "reconnecting";
@@ -66,24 +80,6 @@ function conversationName(conversation: ChatConversation, actorId: string) {
     conversation.members.find((member) => member.userId !== actorId)
       ?.displayName ?? ""
   );
-}
-
-function mergeMessage(
-  page: ChatPage<ChatMessage> | undefined,
-  message: ChatMessage,
-): ChatPage<ChatMessage> {
-  const existing = page?.data ?? [];
-  const replaced = existing.some((item) => item.id === message.id)
-    ? existing.map((item) => (item.id === message.id ? message : item))
-    : [...existing, message];
-  return {
-    data: replaced.sort(
-      (left, right) =>
-        Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
-        left.id.localeCompare(right.id),
-    ),
-    nextCursor: page?.nextCursor ?? null,
-  };
 }
 
 function isMessage(value: unknown): value is ChatMessage {
@@ -185,7 +181,7 @@ export default function ChatWorkspace() {
   const [debouncedPersonSearch, setDebouncedPersonSearch] = useState("");
   const [roomTitle, setRoomTitle] = useState("");
   const [roomMembers, setRoomMembers] = useState<ChatCandidate[]>([]);
-  const [sendError, setSendError] = useState(false);
+  const [sendErrorKey, setSendErrorKey] = useState<string | null>(null);
   const [roomError, setRoomError] = useState(false);
   const [roomManagementOpen, setRoomManagementOpen] = useState(false);
   const [roomTitleDraft, setRoomTitleDraft] = useState("");
@@ -210,6 +206,9 @@ export default function ChatWorkspace() {
   );
   const pendingUploads = useRef(
     new Map<string, { fingerprint: string; ids: string[] }>(),
+  );
+  const pendingAssistantRetries = useRef(
+    new Map<string, { fingerprint: string; clientMessageId: string }>(),
   );
   const scrollRef = useRef<HTMLDivElement>(null);
   const isLoadingEarlierRef = useRef(false);
@@ -277,10 +276,11 @@ export default function ChatWorkspace() {
     () => visibleConversationPages?.pages.flatMap((page) => page.data) ?? [],
     [visibleConversationPages],
   );
+  const detailQueryEnabled = Boolean(activeId && organizationId);
   const detailQuery = useQuery({
-    queryKey: ["chat", organizationId, "detail", activeId],
+    queryKey: chatKeys.conversation(organizationId, activeId),
     queryFn: () => chatFeatures.conversation(activeId),
-    enabled: Boolean(activeId && organizationId),
+    enabled: detailQueryEnabled,
     retry: false,
   });
   const openMessageContext = (
@@ -289,8 +289,16 @@ export default function ChatWorkspace() {
     setTool(null);
     setSearchOpen(false);
     setMobileListOpen(false);
-    if (message.conversationId === activeId) setContextMessageId(message.id);
-    else {
+    if (message.conversationId === activeId) {
+      if (contextMessageId === message.id) {
+        const target = document.getElementById(`chat-message-${message.id}`);
+        target?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        target?.focus({ preventScroll: true });
+        setHighlightedMessageId(message.id);
+      } else {
+        setContextMessageId(message.id);
+      }
+    } else {
       pendingContext.current = message.id;
       setActiveId(message.conversationId);
       setActiveFallback(null);
@@ -320,11 +328,17 @@ export default function ChatWorkspace() {
   }, [navigationTarget, activeId, clearNavigation]);
   const detailAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(detailQuery.error);
   const visibleConversationDetail = detailAccessLost ? undefined : detailQuery.data;
+  const activeListConversation = conversations.find(
+    (item) => item.id === activeId,
+  );
+  const activeSearchConversation = activeListConversation
+    ? undefined
+    : visibleConversationSearchPages?.pages
+        .flatMap((page) => page.data)
+        .find((item) => item.id === activeId);
   const activeConversation =
-    conversations.find((item) => item.id === activeId) ??
-    visibleConversationSearchPages?.pages
-      .flatMap((page) => page.data)
-      .find((item) => item.id === activeId) ??
+    activeListConversation ??
+    activeSearchConversation ??
     visibleConversationDetail ??
     (detailAccessLost ? undefined : activeFallback?.conversation);
   const tPage = useTranslations("pageTitles");
@@ -337,6 +351,49 @@ export default function ChatWorkspace() {
       : formatAppTitle(tPage("messages")),
   );
   const activeType = activeConversation?.type ?? (detailAccessLost ? undefined : activeFallback?.type);
+  const conversationsCapabilities =
+    visibleConversationPages?.pages[0]?.capabilities;
+  const searchConversationsCapabilities =
+    visibleConversationSearchPages?.pages[0]?.capabilities;
+  const listCapabilities = activeListConversation
+    ? (activeListConversation.capabilities ?? conversationsCapabilities)
+    : activeSearchConversation
+      ? (activeSearchConversation.capabilities ??
+        searchConversationsCapabilities ??
+        conversationsCapabilities)
+      : conversationsCapabilities;
+  const hasSearchCapabilities = Boolean(
+    activeSearchConversation?.capabilities ?? searchConversationsCapabilities,
+  );
+  const listDataUpdatedAt = activeListConversation
+    ? conversationsQuery.dataUpdatedAt
+    : activeSearchConversation && hasSearchCapabilities
+      ? conversationSearchQuery.dataUpdatedAt
+      : conversationsQuery.dataUpdatedAt;
+  const freshDetailCapabilities =
+    visibleConversationDetail?.id === activeId
+      ? visibleConversationDetail.capabilities
+      : undefined;
+  const dmAssistantEnabled = resolveFreshDmAssistantCapability({
+    conversation: activeConversation,
+    detail: {
+      capabilities: freshDetailCapabilities,
+      dataUpdatedAt: detailQuery.dataUpdatedAt,
+      enabled: detailQueryEnabled,
+    },
+    list: {
+      capabilities: listCapabilities,
+      dataUpdatedAt: listDataUpdatedAt,
+      enabled: Boolean(
+        organizationId &&
+          (activeListConversation
+            ? !conversationsAccessLost
+            : activeSearchConversation
+              ? !conversationSearchAccessLost
+              : !conversationsAccessLost),
+      ),
+    },
+  });
   const contextQuery = useChatMessageContextQuery(
     organizationId,
     activeId,
@@ -433,7 +490,7 @@ export default function ChatWorkspace() {
   useEffect(() => {
     if (!activeId || !messagesQuery.dataUpdatedAt) return;
     void queryClient.invalidateQueries({
-      queryKey: ["chat", organizationId, "search", activeId],
+      queryKey: chatKeys.search(organizationId, activeId),
     });
   }, [activeId, messagesQuery.dataUpdatedAt, organizationId, queryClient]);
 
@@ -593,7 +650,13 @@ export default function ChatWorkspace() {
               const message = packet.data;
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
-                (page) => mergeMessage(page, message),
+                (page) => {
+                  const merged = mergeChatMessage(page, message);
+                  return (
+                    syncTriggerStateFromAssistantMessage(merged, message) ??
+                    merged
+                  );
+                },
               );
               void queryClient.invalidateQueries({
                 queryKey: chatKeys.conversations(organizationId),
@@ -612,28 +675,37 @@ export default function ChatWorkspace() {
                 }
               }
             } else if (
+              packet.event === "assistant.status" &&
+              isAssistantStatusEvent(packet.data)
+            ) {
+              applyAssistantStatusToCaches(
+                queryClient,
+                organizationId,
+                packet.data,
+              );
+            } else if (
               (packet.event === "message.updated" ||
                 packet.event === "message.deleted") &&
               isMessage(packet.data)
             ) {
               const message = packet.data as ChatMessage;
-              const current = queryClient.getQueryData<ChatPage<ChatMessage>>(
-                chatKeys.messages(organizationId, message.conversationId),
-              );
-              const previous = current?.data.find(
-                (item) => item.id === message.id,
-              );
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
-                (page) =>
-                  mergeMessage(page, preserveLocalReactions(message, previous)),
+                (page) => {
+                  const previous = page?.data.find(
+                    (item) => item.id === message.id,
+                  );
+                  return mergeChatMessage(
+                    page,
+                    preserveLocalReactions(message, previous),
+                  );
+                },
               );
-              void queryClient.invalidateQueries({
-                queryKey: chatKeys.messages(
-                  organizationId,
-                  message.conversationId,
-                ),
-              });
+              void invalidateConversationMessageQueries(
+                queryClient,
+                organizationId,
+                message.conversationId,
+              );
               void queryClient.invalidateQueries({
                 queryKey: chatKeys.conversations(organizationId),
               });
@@ -1009,6 +1081,7 @@ export default function ChatWorkspace() {
     setHighlightedMessageId("");
     setSearchOpen(false);
     setReplyingTo(null);
+    setSendErrorKey(null);
     for (const timer of remoteTypingTimers.current.values())
       clearTimeout(timer);
     remoteTypingTimers.current.clear();
@@ -1036,10 +1109,12 @@ export default function ChatWorkspace() {
     files: readonly File[] = [],
     replyToMessageId?: string,
     mentionUserIds: readonly string[] = [],
+    assistantMention?: ChatAssistantMentionInput,
+    clearDraftReply = true,
   ): Promise<boolean> => {
     if (!activeId) return false;
     setIsSending(true);
-    setSendError(false);
+    setSendErrorKey(null);
     try {
       const fingerprint = files
         .map(
@@ -1064,13 +1139,17 @@ export default function ChatWorkspace() {
         ...(pending.ids.length > 0 ? { attachments: pending.ids } : {}),
         ...(replyToMessageId ? { replyToMessageId } : {}),
         mentionUserIds,
+        ...(assistantMention ? { assistantMention } : {}),
       });
       pendingUploads.current.delete(clientMessageId);
       queryClient.setQueryData<ChatPage<ChatMessage>>(
         chatKeys.messages(organizationId, activeId),
-        (page) => mergeMessage(page, message),
+        (page) => mergeChatMessage(page, message),
       );
-      if (replyToMessageId) {
+      if (contextMessageId) {
+        setContextMessageId("");
+      }
+      if (clearDraftReply && replyToMessageId) {
         setReplyingTo((current) =>
           current?.id === replyToMessageId ? null : current,
         );
@@ -1081,11 +1160,49 @@ export default function ChatWorkspace() {
       return true;
     } catch (error) {
       console.error("Failed to send chat message:", error);
-      setSendError(true);
+      setSendErrorKey(resolveChatSendErrorKey(error));
+      if (error instanceof ApiError && error.code === "CHAT_AI_NOT_ENABLED") {
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.conversations(organizationId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.conversation(organizationId, activeId),
+        });
+      }
       return false;
     } finally {
       setIsSending(false);
     }
+  };
+
+  const retryAssistantMessage = async (
+    triggerMessage: ChatMessage,
+  ): Promise<boolean> => {
+    const payload = getAssistantRetryPayload(triggerMessage);
+    if (!payload) return false;
+    const fingerprint = buildAssistantRetryFingerprint(triggerMessage, payload);
+    const existing = pendingAssistantRetries.current.get(triggerMessage.id);
+    const clientMessageId =
+      existing?.fingerprint === fingerprint
+        ? existing.clientMessageId
+        : crypto.randomUUID();
+    pendingAssistantRetries.current.set(triggerMessage.id, {
+      fingerprint,
+      clientMessageId,
+    });
+    const sent = await sendMessage(
+      payload.content,
+      clientMessageId,
+      [],
+      triggerMessage.replyToMessageId ?? undefined,
+      [],
+      payload.assistantMention,
+      false,
+    );
+    if (sent) {
+      pendingAssistantRetries.current.delete(triggerMessage.id);
+    }
+    return sent;
   };
 
   const saveMessageEdit = async (
@@ -1110,11 +1227,13 @@ export default function ChatWorkspace() {
       );
       queryClient.setQueryData<ChatPage<ChatMessage>>(
         chatKeys.messages(organizationId, activeId),
-        (page) => mergeMessage(page, updated),
+        (page) => mergeChatMessage(page, updated),
       );
-      await queryClient.invalidateQueries({
-        queryKey: chatKeys.messages(organizationId, activeId),
-      });
+      await invalidateConversationMessageQueries(
+        queryClient,
+        organizationId,
+        activeId,
+      );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.conversations(organizationId),
       });
@@ -1132,11 +1251,13 @@ export default function ChatWorkspace() {
       const updated = await chatApi.deleteMessage(activeId, messageId);
       queryClient.setQueryData<ChatPage<ChatMessage>>(
         chatKeys.messages(organizationId, activeId),
-        (page) => mergeMessage(page, updated),
+        (page) => mergeChatMessage(page, updated),
       );
-      await queryClient.invalidateQueries({
-        queryKey: chatKeys.messages(organizationId, activeId),
-      });
+      await invalidateConversationMessageQueries(
+        queryClient,
+        organizationId,
+        activeId,
+      );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.conversations(organizationId),
       });
@@ -1163,7 +1284,7 @@ export default function ChatWorkspace() {
       );
       queryClient.setQueryData<ChatPage<ChatMessage>>(
         chatKeys.messages(organizationId, activeId),
-        (page) => mergeMessage(page, updated),
+        (page) => mergeChatMessage(page, updated),
       );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.messages(organizationId, activeId),
@@ -1189,13 +1310,7 @@ export default function ChatWorkspace() {
         contextMessageId
           ? chatKeys.context(organizationId, conversationId, contextMessageId)
           : chatKeys.messages(organizationId, conversationId),
-        (page) => ({
-          data: [...older.data, ...(page?.data ?? [])].filter(
-            (message, index, all) =>
-              all.findIndex((item) => item.id === message.id) === index,
-          ),
-          nextCursor: older.nextCursor,
-        }),
+        (page) => mergeOlderChatMessages(page, older),
       );
       requestAnimationFrame(() => {
         const current = scrollRef.current;
@@ -1673,7 +1788,7 @@ export default function ChatWorkspace() {
                                 </span>
                               </span>
                               {peerEmail && (
-                                <span className="block truncate text-[11px] text-gray-500 dark:text-gray-400">
+                                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
                                   {peerEmail}
                                 </span>
                               )}
@@ -1683,7 +1798,7 @@ export default function ChatWorkspace() {
                                     t("messageEmpty")}
                                 </span>
                                 {conversation.lastMessageAt && (
-                                  <time className="shrink-0 text-[11px] text-gray-400">
+                                  <time className="shrink-0 text-xs text-gray-500 tabular-nums dark:text-gray-400">
                                     {new Date(
                                       conversation.lastMessageAt,
                                     ).toLocaleTimeString([], {
@@ -1698,7 +1813,7 @@ export default function ChatWorkspace() {
                                     aria-label={t("unread", {
                                       count: conversation.unreadCount,
                                     })}
-                                    className="rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                                    className="rounded-full bg-brand-500 px-1.5 py-0.5 text-xs font-bold text-white tabular-nums"
                                   >
                                     {conversation.unreadCount || "•"}
                                   </span>
@@ -1757,7 +1872,7 @@ export default function ChatWorkspace() {
                                   {member.email}
                                 </span>
                               )}
-                              <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                              <span className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                                 <span
                                   className={`h-1.5 w-1.5 rounded-full ${member.isOnline ? "bg-success-500" : "bg-gray-300"}`}
                                 />
@@ -1813,7 +1928,7 @@ export default function ChatWorkspace() {
                   type="button"
                   onClick={() => setMobileListOpen(true)}
                   aria-label={t("title")}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 md:hidden dark:hover:bg-gray-800"
+                  className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 md:hidden dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <span aria-hidden="true">←</span>
                 </button>
@@ -1856,7 +1971,7 @@ export default function ChatWorkspace() {
                     setSearchOpen(false);
                     setRoomManagementOpen(false);
                   }}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <MoreDotIcon width={20} height={20} className="h-5 w-5 shrink-0" />
                 </button>
@@ -1870,7 +1985,7 @@ export default function ChatWorkspace() {
                     setRoomManagementOpen(false);
                     closeCompose();
                   }}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
+                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <SearchIcon width={20} height={20} className="h-5 w-5 shrink-0" />
                 </button>
@@ -1898,7 +2013,7 @@ export default function ChatWorkspace() {
                       if (opening)
                         setRoomTitleDraft(activeConversation?.title ?? "");
                     }}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
+                    className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
                     <InfoIcon width={20} height={20} className="h-5 w-5 shrink-0" />
                   </button>
@@ -1998,6 +2113,7 @@ export default function ChatWorkspace() {
                             ? t("deliveredBy", { count: deliveredByCount })
                             : t("delivered")
                         : undefined;
+                    const assistantMsg = isAssistantMessage(message);
                     return (
                       <ChatMessageBubble
                         key={message.id}
@@ -2019,7 +2135,11 @@ export default function ChatWorkspace() {
                             conversationId: message.conversationId,
                           })
                         }
-                        onForward={() => setTool({ mode: "forward", message })}
+                        onForward={
+                          assistantMsg
+                            ? undefined
+                            : () => setTool({ mode: "forward", message })
+                        }
                         onPin={() => {
                           void chatFeatures
                             .pin(activeId, message.id, !message.isPinned)
@@ -2031,11 +2151,14 @@ export default function ChatWorkspace() {
                             .catch(() => setMessageActionError(true));
                         }}
                         onReceipts={
-                          mine
+                          mine && !assistantMsg
                             ? () => setTool({ mode: "receipts", message })
                             : undefined
                         }
                         onReport={() => setTool({ mode: "report", message })}
+                        onRetryAssistant={
+                          dmAssistantEnabled ? retryAssistantMessage : undefined
+                        }
                         onReply={() => setReplyingTo(message)}
                         onEdit={(content) =>
                           saveMessageEdit(message.id, content)
@@ -2057,12 +2180,12 @@ export default function ChatWorkspace() {
                   </p>
                 )}
               </div>
-              {sendError && (
+              {sendErrorKey && (
                 <div
                   role="alert"
                   className="border-t border-error-100 bg-error-50 px-4 py-2 text-xs text-error-700 dark:border-error-900 dark:bg-error-950/30 dark:text-error-300"
                 >
-                  {t("sendError")}
+                  {t(sendErrorKey)}
                 </div>
               )}
               {messageActionError && (
@@ -2076,6 +2199,8 @@ export default function ChatWorkspace() {
               <ChatDraftComposer
                 conversationId={activeId}
                 organizationId={organizationId}
+                currentUserId={actorId}
+                dmAssistantEnabled={dmAssistantEnabled}
                 members={activeConversation?.members}
                 key={activeId}
                 isSending={isSending}
@@ -2093,13 +2218,20 @@ export default function ChatWorkspace() {
                     : null
                 }
                 onCancelReply={() => setReplyingTo(null)}
-                onSend={(content, id, files, mentionUserIds) =>
+                onSend={(
+                  content,
+                  id,
+                  files,
+                  mentionUserIds,
+                  assistantMention,
+                ) =>
                   sendMessage(
                     content,
                     id,
                     files,
                     replyingTo?.id,
                     mentionUserIds,
+                    assistantMention,
                   )
                 }
                 onTyping={onComposerTyping}
