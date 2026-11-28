@@ -13,6 +13,7 @@ vi.mock("@/icons", () => ({
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  Reflect.deleteProperty(Element.prototype, "scrollIntoView");
 });
 
 it("sends only explicitly selected mention IDs and removes them when the text is removed", async () => {
@@ -327,4 +328,51 @@ it("filters the current user out of mention suggestions while keeping @continuum
   expect(
     screen.queryByRole("button", { name: "Pham Anh Self" }),
   ).not.toBeInTheDocument();
+});
+
+it("scrolls the active mention option into view on ArrowDown and ArrowUp without failing when scrollIntoView is absent", () => {
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(Element.prototype, "scrollIntoView", {
+    value: scrollIntoView,
+    configurable: true,
+    writable: true,
+  });
+
+  render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ChatComposer
+        dmAssistantEnabled
+        isSending={false}
+        onSend={vi.fn().mockResolvedValue(true)}
+        onTyping={vi.fn()}
+        members={[
+          { userId: "member-1", displayName: "An Nguyen" },
+          { userId: "member-2", displayName: "Binh Tran" },
+          { userId: "member-3", displayName: "Chi Le" },
+        ]}
+      />
+    </NextIntlClientProvider>,
+  );
+
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "@" } });
+  const options = screen.getAllByRole("option");
+  expect(options).toHaveLength(4);
+  expect(scrollIntoView).not.toHaveBeenCalled();
+
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  expect(options[1]).toHaveAttribute("aria-selected", "true");
+  expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
+  expect(scrollIntoView.mock.instances[0]).toBe(options[1]);
+
+  fireEvent.keyDown(input, { key: "ArrowUp" });
+  expect(options[0]).toHaveAttribute("aria-selected", "true");
+  expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
+  expect(scrollIntoView.mock.instances[1]).toBe(options[0]);
+
+  // Safely guarded when jsdom lacks scrollIntoView
+  Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  expect(() => fireEvent.keyDown(input, { key: "ArrowDown" })).not.toThrow();
 });

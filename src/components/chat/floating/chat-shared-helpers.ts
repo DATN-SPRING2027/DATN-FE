@@ -7,6 +7,7 @@ import {
   type ChatPage,
   type ChatParticipant,
 } from "@/lib/queries/chat/useChat";
+import { reconcileMessageAssistantState } from "../assistant-utils";
 
 export type FloatingConnectionState =
   | "connecting"
@@ -148,9 +149,11 @@ export function mergeChatMessage(
   message: ChatMessage,
 ): ChatPage<ChatMessage> {
   const existing = page?.data ?? [];
-  const replaced = existing.some((item) => item.id === message.id)
-    ? existing.map((item) => (item.id === message.id ? message : item))
-    : [...existing, message];
+  const existingItem = existing.find((item) => item.id === message.id);
+  const reconciled = reconcileMessageAssistantState(message, existingItem);
+  const replaced = existingItem
+    ? existing.map((item) => (item.id === reconciled.id ? reconciled : item))
+    : [...existing, reconciled];
   return {
     data: replaced.sort(
       (left, right) =>

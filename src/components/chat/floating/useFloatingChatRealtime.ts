@@ -21,6 +21,7 @@ import {
 import { preserveLocalReactions } from "../message-state";
 import {
   applyAssistantStatusToCaches,
+  invalidateConversationMessageQueries,
   isAssistantStatusEvent,
   syncTriggerStateFromAssistantMessage,
 } from "../assistant-utils";
@@ -407,12 +408,11 @@ export function useFloatingChatRealtime({
                     preserveLocalReactions(message, previous),
                   ),
               );
-              void queryClient.invalidateQueries({
-                queryKey: chatKeys.messages(
-                  organizationId,
-                  message.conversationId,
-                ),
-              });
+              void invalidateConversationMessageQueries(
+                queryClient,
+                organizationId,
+                message.conversationId,
+              );
               void queryClient.invalidateQueries({
                 queryKey: chatKeys.conversations(organizationId),
               });

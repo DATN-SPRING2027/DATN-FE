@@ -179,6 +179,8 @@ export default function ChatComposer({
   const [files, setFiles] = useState<SelectedFileData[]>([]);
   const [fileError, setFileError] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionOptionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const keyboardMentionNavRef = useRef(false);
   const pendingSend = useRef<{ fingerprint: string; id: string } | null>(null);
   const previewUrls = useRef(new Set<string>());
   const fileFingerprint = files
@@ -199,6 +201,13 @@ export default function ChatComposer({
   useEffect(() => {
     if (replyContext?.id) textareaRef.current?.focus();
   }, [replyContext?.id]);
+
+  useEffect(() => {
+    if (!isMentionOpen || !keyboardMentionNavRef.current) return;
+    keyboardMentionNavRef.current = false;
+    const activeOption = mentionOptionRefs.current[safeActiveMentionIndex];
+    activeOption?.scrollIntoView?.({ block: "nearest" });
+  }, [isMentionOpen, safeActiveMentionIndex]);
 
   useEffect(
     () => () => {
@@ -431,11 +440,13 @@ export default function ChatComposer({
     if (isMentionOpen) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
+        keyboardMentionNavRef.current = true;
         setActiveMentionIndex((current) => (current + 1) % mentionOptions.length);
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
+        keyboardMentionNavRef.current = true;
         setActiveMentionIndex(
           (current) =>
             (current - 1 + mentionOptions.length) % mentionOptions.length,
@@ -566,6 +577,9 @@ export default function ChatComposer({
                 <div
                   key={option.id}
                   id={optionId}
+                  ref={(node) => {
+                    mentionOptionRefs.current[index] = node;
+                  }}
                   role="option"
                   aria-selected={isActive}
                 >
@@ -574,7 +588,10 @@ export default function ChatComposer({
                     tabIndex={-1}
                     data-testid="mention-option-continuum-ai"
                     onMouseDown={(event) => event.preventDefault()}
-                    onMouseEnter={() => setActiveMentionIndex(index)}
+                    onMouseEnter={() => {
+                      keyboardMentionNavRef.current = false;
+                      setActiveMentionIndex(index);
+                    }}
                     onClick={() => selectMentionOption(option)}
                     className={`flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-start transition ${
                       isActive
@@ -613,6 +630,9 @@ export default function ChatComposer({
               <div
                 key={option.userId}
                 id={optionId}
+                ref={(node) => {
+                  mentionOptionRefs.current[index] = node;
+                }}
                 role="option"
                 aria-selected={isActive}
                 className={
@@ -625,7 +645,10 @@ export default function ChatComposer({
                   type="button"
                   tabIndex={-1}
                   onMouseDown={(event) => event.preventDefault()}
-                  onMouseEnter={() => setActiveMentionIndex(index)}
+                  onMouseEnter={() => {
+                    keyboardMentionNavRef.current = false;
+                    setActiveMentionIndex(index);
+                  }}
                   onClick={() => selectMentionOption(option)}
                   className={`flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-start text-xs transition ${
                     isActive

@@ -47,6 +47,7 @@ import {
   acquireSharedChatWsTicket,
   getChatWsCooldownRemainingMs,
   getChatWsPolicyFailureCooldownMs,
+  mergeChatMessage,
   recordChatWsConnectionFailure,
   resetChatWsCooldown,
   resolveChatRealtimeWsUrl,
@@ -60,7 +61,9 @@ import { hasReadMessage } from "./read-receipt";
 import { foldSearchText } from "./search-text";
 import {
   applyAssistantStatusToCaches,
+  buildAssistantRetryFingerprint,
   getAssistantRetryPayload,
+  invalidateConversationMessageQueries,
   isAssistantStatusEvent,
   isDmAssistantEnabledForConversation,
   resolveChatSendErrorKey,
@@ -76,24 +79,6 @@ function conversationName(conversation: ChatConversation, actorId: string) {
     conversation.members.find((member) => member.userId !== actorId)
       ?.displayName ?? ""
   );
-}
-
-function mergeMessage(
-  page: ChatPage<ChatMessage> | undefined,
-  message: ChatMessage,
-): ChatPage<ChatMessage> {
-  const existing = page?.data ?? [];
-  const replaced = existing.some((item) => item.id === message.id)
-    ? existing.map((item) => (item.id === message.id ? message : item))
-    : [...existing, message];
-  return {
-    data: replaced.sort(
-      (left, right) =>
-        Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
-        left.id.localeCompare(right.id),
-    ),
-    nextCursor: page?.nextCursor ?? null,
-  };
 }
 
 function isMessage(value: unknown): value is ChatMessage {
@@ -221,6 +206,9 @@ export default function ChatWorkspace() {
   const pendingUploads = useRef(
     new Map<string, { fingerprint: string; ids: string[] }>(),
   );
+  const pendingAssistantRetries = useRef(
+    new Map<string, { fingerprint: string; clientMessageId: string }>(),
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const isLoadingEarlierRef = useRef(false);
   const roomCreation = useRef<{ fingerprint: string; id: string } | null>(null);
@@ -288,7 +276,7 @@ export default function ChatWorkspace() {
     [visibleConversationPages],
   );
   const detailQuery = useQuery({
-    queryKey: ["chat", organizationId, "detail", activeId],
+    queryKey: chatKeys.conversation(organizationId, activeId),
     queryFn: () => chatFeatures.conversation(activeId),
     enabled: Boolean(activeId && organizationId),
     retry: false,
@@ -357,9 +345,14 @@ export default function ChatWorkspace() {
   const activeType = activeConversation?.type ?? (detailAccessLost ? undefined : activeFallback?.type);
   const conversationsCapabilities =
     visibleConversationPages?.pages[0]?.capabilities;
+  const freshDetailCapabilities =
+    visibleConversationDetail?.id === activeId
+      ? visibleConversationDetail.capabilities
+      : undefined;
   const dmAssistantEnabled = isDmAssistantEnabledForConversation(
     activeConversation,
-    visibleConversationDetail?.capabilities ?? conversationsCapabilities,
+    conversationsCapabilities,
+    freshDetailCapabilities,
   );
   const contextQuery = useChatMessageContextQuery(
     organizationId,
@@ -457,7 +450,7 @@ export default function ChatWorkspace() {
   useEffect(() => {
     if (!activeId || !messagesQuery.dataUpdatedAt) return;
     void queryClient.invalidateQueries({
-      queryKey: ["chat", organizationId, "search", activeId],
+      queryKey: chatKeys.search(organizationId, activeId),
     });
   }, [activeId, messagesQuery.dataUpdatedAt, organizationId, queryClient]);
 
@@ -618,7 +611,7 @@ export default function ChatWorkspace() {
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
                 (page) => {
-                  const merged = mergeMessage(page, message);
+                  const merged = mergeChatMessage(page, message);
                   return (
                     syncTriggerStateFromAssistantMessage(merged, message) ??
                     merged
@@ -665,14 +658,16 @@ export default function ChatWorkspace() {
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
                 (page) =>
-                  mergeMessage(page, preserveLocalReactions(message, previous)),
+                  mergeChatMessage(
+                    page,
+                    preserveLocalReactions(message, previous),
+                  ),
               );
-              void queryClient.invalidateQueries({
-                queryKey: chatKeys.messages(
-                  organizationId,
-                  message.conversationId,
-                ),
-              });
+              void invalidateConversationMessageQueries(
+                queryClient,
+                organizationId,
+                message.conversationId,
+              );
               void queryClient.invalidateQueries({
                 queryKey: chatKeys.conversations(organizationId),
               });
@@ -1077,6 +1072,7 @@ export default function ChatWorkspace() {
     replyToMessageId?: string,
     mentionUserIds: readonly string[] = [],
     assistantMention?: ChatAssistantMentionInput,
+    clearDraftReply = true,
   ): Promise<boolean> => {
     if (!activeId) return false;
     setIsSending(true);
@@ -1110,12 +1106,12 @@ export default function ChatWorkspace() {
       pendingUploads.current.delete(clientMessageId);
       queryClient.setQueryData<ChatPage<ChatMessage>>(
         chatKeys.messages(organizationId, activeId),
-        (page) => mergeMessage(page, message),
+        (page) => mergeChatMessage(page, message),
       );
       if (contextMessageId) {
         setContextMessageId("");
       }
-      if (replyToMessageId) {
+      if (clearDraftReply && replyToMessageId) {
         setReplyingTo((current) =>
           current?.id === replyToMessageId ? null : current,
         );
@@ -1127,6 +1123,14 @@ export default function ChatWorkspace() {
     } catch (error) {
       console.error("Failed to send chat message:", error);
       setSendErrorKey(resolveChatSendErrorKey(error));
+      if (error instanceof ApiError && error.code === "CHAT_AI_NOT_ENABLED") {
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.conversations(organizationId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.conversation(organizationId, activeId),
+        });
+      }
       return false;
     } finally {
       setIsSending(false);
@@ -1138,14 +1142,29 @@ export default function ChatWorkspace() {
   ): Promise<boolean> => {
     const payload = getAssistantRetryPayload(triggerMessage);
     if (!payload) return false;
-    return sendMessage(
+    const fingerprint = buildAssistantRetryFingerprint(triggerMessage, payload);
+    const existing = pendingAssistantRetries.current.get(triggerMessage.id);
+    const clientMessageId =
+      existing?.fingerprint === fingerprint
+        ? existing.clientMessageId
+        : crypto.randomUUID();
+    pendingAssistantRetries.current.set(triggerMessage.id, {
+      fingerprint,
+      clientMessageId,
+    });
+    const sent = await sendMessage(
       payload.content,
-      crypto.randomUUID(),
+      clientMessageId,
       [],
-      undefined,
+      triggerMessage.replyToMessageId ?? undefined,
       [],
       payload.assistantMention,
+      false,
     );
+    if (sent) {
+      pendingAssistantRetries.current.delete(triggerMessage.id);
+    }
+    return sent;
   };
 
   const saveMessageEdit = async (
@@ -1170,11 +1189,13 @@ export default function ChatWorkspace() {
       );
       queryClient.setQueryData<ChatPage<ChatMessage>>(
         chatKeys.messages(organizationId, activeId),
-        (page) => mergeMessage(page, updated),
+        (page) => mergeChatMessage(page, updated),
       );
-      await queryClient.invalidateQueries({
-        queryKey: chatKeys.messages(organizationId, activeId),
-      });
+      await invalidateConversationMessageQueries(
+        queryClient,
+        organizationId,
+        activeId,
+      );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.conversations(organizationId),
       });
@@ -1192,11 +1213,13 @@ export default function ChatWorkspace() {
       const updated = await chatApi.deleteMessage(activeId, messageId);
       queryClient.setQueryData<ChatPage<ChatMessage>>(
         chatKeys.messages(organizationId, activeId),
-        (page) => mergeMessage(page, updated),
+        (page) => mergeChatMessage(page, updated),
       );
-      await queryClient.invalidateQueries({
-        queryKey: chatKeys.messages(organizationId, activeId),
-      });
+      await invalidateConversationMessageQueries(
+        queryClient,
+        organizationId,
+        activeId,
+      );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.conversations(organizationId),
       });
@@ -1223,7 +1246,7 @@ export default function ChatWorkspace() {
       );
       queryClient.setQueryData<ChatPage<ChatMessage>>(
         chatKeys.messages(organizationId, activeId),
-        (page) => mergeMessage(page, updated),
+        (page) => mergeChatMessage(page, updated),
       );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.messages(organizationId, activeId),

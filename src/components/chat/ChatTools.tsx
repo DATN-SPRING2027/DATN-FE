@@ -9,6 +9,7 @@ import {
 import { useTranslations } from "next-intl";
 import {
   chatApi,
+  chatKeys,
   isAssistantMessage,
   type ChatConversation,
   type ChatMessage,
@@ -110,11 +111,15 @@ export default function ChatTools({
     enabled: mode === "receipts" && Boolean(cid && message),
     retry: false,
   });
+  const resultsBaseKey =
+    mode === "library"
+      ? chatKeys.toolsLibrary(organizationId, cid)
+      : mode === "search"
+        ? [...chatKeys.toolsSearch(organizationId), cid]
+        : [...key, mode, cid];
   const results = useInfiniteQuery({
     queryKey: [
-      ...key,
-      mode,
-      cid,
+      ...resultsBaseKey,
       debounced,
       senderId,
       from,

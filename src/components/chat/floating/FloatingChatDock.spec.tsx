@@ -11,12 +11,13 @@ import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import ContinuumAiCompanion from "@/components/ai-companion/ContinuumAiCompanion";
 import { useChatNavigation } from "@/stores/chat-navigation";
 import { useFloatingChatStore } from "@/stores/floating-chat";
+import { clearAssistantStateTombstones } from "../assistant-utils";
 import { resetChatWsCooldown } from "./chat-shared-helpers";
 import FloatingChatDock from "./FloatingChatDock";
 
@@ -150,6 +151,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     useFloatingChatStore.getState().reset();
     useChatNavigation.getState().clear();
     resetChatWsCooldown();
+    clearAssistantStateTombstones();
     api.mockReset();
     routerPushMock.mockReset();
     routeState.pathname = "/projects/507f1f77bcf86cd799439011/work";
@@ -170,6 +172,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
   });
 
   afterEach(() => {
+    clearAssistantStateTombstones();
     vi.unstubAllGlobals();
   });
 
@@ -1502,5 +1505,493 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
         },
       }),
     );
+  });
+
+  it("enforces monotonic assistantState against late WS PENDING and terminal WS events arriving before POST resolves in MiniChatWindow", async () => {
+    const sampleConv = {
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-28T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      capabilities: { dmAssistantEnabled: true },
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    };
+
+    const triggerId = "507f1f77bcf86cd799439161";
+    const aiReplyId = "507f1f77bcf86cd799439162";
+    const raceTriggerId = "507f1f77bcf86cd799439163";
+    let resolvePost!: (value: unknown) => void;
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-mini-mono", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        return {
+          data: [sampleConv],
+          nextCursor: null,
+          capabilities: { dmAssistantEnabled: true },
+        };
+      }
+      if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+        return {
+          data: [
+            {
+              id: triggerId,
+              conversationId: convId,
+              senderId: actorId,
+              senderName: "Phuc Nguyen",
+              senderAvatarUrl: null,
+              content: "@continuumAI Status",
+              createdAt: "2026-11-28T09:00:00.000Z",
+              assistantState: {
+                jobId: "job-mini-mono-1",
+                status: "PROCESSING",
+                failureCode: null,
+                responseMessageId: null,
+                updatedAt: "2026-11-28T09:00:01.000Z",
+              },
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: null,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+            {
+              id: aiReplyId,
+              conversationId: convId,
+              senderId: "assistant:continuum_ai",
+              senderName: "Continuum AI",
+              senderAvatarUrl: null,
+              authorType: "ASSISTANT",
+              triggerMessageId: triggerId,
+              assistantStatus: "COMPLETED",
+              assistantFailureCode: null,
+              assistantMeta: {
+                handle: "continuumAI",
+                queryMode: "KEYWORD",
+                partialCoverage: false,
+                coverageNote: null,
+                sourceState: "FRESH",
+              },
+              sourceReferences: [],
+              content: "Done.",
+              createdAt: "2026-11-28T09:00:05.000Z",
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: triggerId,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      if (path === `/chat/conversations/${convId}/draft`) {
+        if (init?.method === "PUT") return { ok: true };
+        return { content: "", mentionUserIds: [], assistantMention: false };
+      }
+      if (
+        path === `/chat/conversations/${convId}/delivered` ||
+        path === `/chat/conversations/${convId}/read`
+      ) {
+        return { ok: true };
+      }
+      if (
+        path === `/chat/conversations/${convId}/messages` &&
+        init?.method === "POST"
+      ) {
+        return await new Promise((resolve) => {
+          resolvePost = resolve;
+        });
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    renderWithProviders(<FloatingChatDock />);
+
+    const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+    expect(
+      await within(miniWindow).findByTestId(
+        "assistant-trigger-status-processing",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    const socket = FakeWebSocket.instances[0]!;
+
+    // (a) WS COMPLETED -> late out-of-order WS PENDING stays COMPLETED
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "assistant.status",
+          data: {
+            conversationId: convId,
+            triggerMessageId: triggerId,
+            jobId: "job-mini-mono-1",
+            status: "COMPLETED",
+            failureCode: null,
+            responseMessageId: aiReplyId,
+            updatedAt: "2026-11-28T09:00:05.000Z",
+          },
+        }),
+      });
+    });
+    await waitFor(() =>
+      expect(
+        within(miniWindow).queryByTestId("assistant-trigger-status-processing"),
+      ).not.toBeInTheDocument(),
+    );
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "assistant.status",
+          data: {
+            conversationId: convId,
+            triggerMessageId: triggerId,
+            jobId: "job-mini-mono-1",
+            status: "PENDING",
+            failureCode: null,
+            responseMessageId: null,
+            updatedAt: "2026-11-28T09:00:00.000Z",
+          },
+        }),
+      });
+    });
+    expect(
+      within(miniWindow).queryByTestId("assistant-trigger-status-pending"),
+    ).not.toBeInTheDocument();
+
+    // (b) WS CANCELLED arriving BEFORE POST /messages resolves keeps trigger terminal
+    fireEvent.click(
+      await within(miniWindow).findByTestId("chat-composer-ai-trigger"),
+    );
+    const input = within(miniWindow).getByPlaceholderText("Write a message…");
+    fireEvent.change(input, {
+      target: { value: "@continuumAI Mini race check" },
+    });
+    fireEvent.click(
+      within(miniWindow).getByRole("button", { name: "Send message" }),
+    );
+    await waitFor(() => expect(resolvePost).toBeDefined());
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "assistant.status",
+          data: {
+            conversationId: convId,
+            triggerMessageId: raceTriggerId,
+            jobId: "job-mini-race",
+            status: "CANCELLED",
+            failureCode: "SOURCE_CHANGED",
+            responseMessageId: null,
+            updatedAt: "2026-11-28T09:02:04.000Z",
+          },
+        }),
+      });
+    });
+
+    await act(async () => {
+      resolvePost({
+        id: raceTriggerId,
+        conversationId: convId,
+        senderId: actorId,
+        senderName: "Phuc Nguyen",
+        senderAvatarUrl: null,
+        content: "@continuumAI Mini race check",
+        createdAt: "2026-11-28T09:02:00.000Z",
+        assistantState: {
+          jobId: "job-mini-race",
+          status: "PENDING",
+          failureCode: null,
+          responseMessageId: null,
+          updatedAt: "2026-11-28T09:02:00.000Z",
+        },
+        editedAt: null,
+        deletedAt: null,
+        replyToMessageId: null,
+        replyTo: null,
+        attachments: [],
+        reactions: [],
+      });
+    });
+
+    expect(
+      await within(miniWindow).findByTestId(
+        "assistant-trigger-status-cancelled-source_changed",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(miniWindow).queryByTestId("assistant-trigger-status-pending"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reuses retry clientMessageId across network errors, ignores unrelated composer reply draft, and invalidates capabilities on CHAT_AI_NOT_ENABLED in MiniChatWindow", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    let dmAssistantEnabled = true;
+    const makeSampleConv = () => ({
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-28T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      capabilities: { dmAssistantEnabled },
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    });
+
+    const unrelatedPeerMsgId = "507f1f77bcf86cd799439201";
+    const failedTriggerId = "507f1f77bcf86cd799439202";
+    const sentPayloads: Array<{
+      clientMessageId: string;
+      replyToMessageId?: string;
+    }> = [];
+    let postCallCount = 0;
+    let convFetchCount = 0;
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-mini-retry", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        convFetchCount += 1;
+        return {
+          data: [makeSampleConv()],
+          nextCursor: null,
+          capabilities: { dmAssistantEnabled },
+        };
+      }
+      if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+        return {
+          data: [
+            {
+              id: unrelatedPeerMsgId,
+              conversationId: convId,
+              senderId: "507f1f77bcf86cd799439099",
+              senderName: "Lan Tran",
+              senderAvatarUrl: null,
+              content: "Unrelated peer message for composer reply",
+              createdAt: "2026-11-28T09:00:00.000Z",
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: null,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+            {
+              id: failedTriggerId,
+              conversationId: convId,
+              senderId: actorId,
+              senderName: "Phuc Nguyen",
+              senderAvatarUrl: null,
+              content: "@continuumAI Summarize decisions",
+              createdAt: "2026-11-28T09:01:00.000Z",
+              assistantMention: {
+                handle: "continuumAI",
+                query: "Summarize decisions",
+                timezone: "Asia/Ho_Chi_Minh",
+              },
+              assistantState: {
+                jobId: "job-mini-fail",
+                status: "FAILED",
+                failureCode: "SERVICE_UNAVAILABLE",
+                responseMessageId: null,
+                updatedAt: "2026-11-28T09:01:05.000Z",
+              },
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: null,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      if (path === `/chat/conversations/${convId}/draft`) {
+        if (init?.method === "PUT") return { ok: true };
+        return { content: "", mentionUserIds: [], assistantMention: false };
+      }
+      if (
+        path === `/chat/conversations/${convId}/delivered` ||
+        path === `/chat/conversations/${convId}/read`
+      ) {
+        return { ok: true };
+      }
+      if (
+        path === `/chat/conversations/${convId}/messages` &&
+        init?.method === "POST"
+      ) {
+        postCallCount += 1;
+        const body = JSON.parse(String(init.body)) as {
+          clientMessageId: string;
+          replyToMessageId?: string;
+        };
+        sentPayloads.push({
+          clientMessageId: body.clientMessageId,
+          replyToMessageId: body.replyToMessageId,
+        });
+        if (postCallCount === 1) {
+          throw new Error("Network failure");
+        }
+        if (postCallCount === 2) {
+          return {
+            id: "507f1f77bcf86cd799439209",
+            conversationId: convId,
+            senderId: actorId,
+            senderName: "Phuc Nguyen",
+            senderAvatarUrl: null,
+            content: "@continuumAI Summarize decisions",
+            createdAt: "2026-11-28T09:02:00.000Z",
+            assistantState: {
+              jobId: "job-mini-retried",
+              status: "PENDING",
+              failureCode: null,
+              responseMessageId: null,
+              updatedAt: "2026-11-28T09:02:00.000Z",
+            },
+            editedAt: null,
+            deletedAt: null,
+            replyToMessageId: null,
+            replyTo: null,
+            attachments: [],
+            reactions: [],
+          };
+        }
+        dmAssistantEnabled = false;
+        throw new ApiError(403, "CHAT_AI_NOT_ENABLED", "Disabled");
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    renderWithProviders(<FloatingChatDock />);
+
+    const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+    expect(
+      await within(miniWindow).findByText(
+        "Unrelated peer message for composer reply",
+      ),
+    ).toBeInTheDocument();
+
+    // Start replying to the unrelated peer message in the draft composer
+    const peerBubble = miniWindow.querySelector(
+      `[data-message-id="${unrelatedPeerMsgId}"]`,
+    ) as HTMLElement;
+    fireEvent.click(
+      within(peerBubble).getByRole("button", { name: "Message actions" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Reply" }));
+    expect(
+      await within(miniWindow).findByText("Replying to Lan Tran"),
+    ).toBeInTheDocument();
+
+    // Retry failed AI trigger -> 1st fails (network), 2nd succeeds with IDENTICAL clientMessageId and NO draft replyToMessageId!
+    const retryBtn = within(miniWindow).getByRole("button", {
+      name: messages.chat.assistantRetryAction,
+    });
+    fireEvent.click(retryBtn);
+    await waitFor(() => expect(sentPayloads).toHaveLength(1));
+
+    fireEvent.click(retryBtn);
+    await waitFor(() => expect(sentPayloads).toHaveLength(2));
+    expect(sentPayloads[1]!.clientMessageId).toBe(
+      sentPayloads[0]!.clientMessageId,
+    );
+    expect(sentPayloads[0]!.replyToMessageId).toBeUndefined();
+    expect(sentPayloads[1]!.replyToMessageId).toBeUndefined();
+    // Unrelated composer reply banner stays intact!
+    expect(
+      within(miniWindow).getByText("Replying to Lan Tran"),
+    ).toBeInTheDocument();
+
+    // CHAT_AI_NOT_ENABLED on a subsequent assistant send immediately invalidates conversations and hides @continuumAI
+    const fetchesBeforeDisabled = convFetchCount;
+    fireEvent.click(
+      within(miniWindow).getByTestId("chat-composer-ai-trigger"),
+    );
+    const input = within(miniWindow).getByPlaceholderText("Write a message…");
+    fireEvent.change(input, {
+      target: { value: "@continuumAI Still enabled?" },
+    });
+    fireEvent.click(
+      within(miniWindow).getByRole("button", { name: "Send message" }),
+    );
+
+    await waitFor(() =>
+      expect(convFetchCount).toBeGreaterThan(fetchesBeforeDisabled),
+    );
+    await waitFor(() =>
+      expect(
+        within(miniWindow).queryByTestId("chat-composer-ai-trigger"),
+      ).not.toBeInTheDocument(),
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 });

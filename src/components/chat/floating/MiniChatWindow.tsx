@@ -10,7 +10,7 @@ import {
   GroupIcon,
   MinusIcon,
 } from "@/icons";
-import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { chatFeatures } from "@/lib/queries/chat/features";
 import {
   chatApi,
@@ -26,7 +26,9 @@ import {
 } from "@/lib/queries/chat/useChat";
 import { useChatNavigation } from "@/stores/chat-navigation";
 import {
+  buildAssistantRetryFingerprint,
   getAssistantRetryPayload,
+  invalidateConversationMessageQueries,
   isDmAssistantEnabledForConversation,
   resolveChatSendErrorKey,
 } from "../assistant-utils";
@@ -105,17 +107,22 @@ export default function MiniChatWindow({
   const pendingUploads = useRef(
     new Map<string, { fingerprint: string; ids: string[] }>(),
   );
+  const pendingAssistantRetries = useRef(
+    new Map<string, { fingerprint: string; clientMessageId: string }>(),
+  );
 
   const detailQuery = useQuery({
-    queryKey: ["chat", organizationId, "detail", conversationId],
+    queryKey: chatKeys.conversation(organizationId, conversationId),
     queryFn: () => chatFeatures.conversation(conversationId),
     enabled: Boolean(!conversation && organizationId && conversationId),
     retry: false,
   });
 
   const detailAccessLost = isAccessOrResourceUnavailableError(detailQuery.error);
-  const activeConversation =
-    conversation ?? (detailAccessLost ? undefined : detailQuery.data);
+  const visibleConversationDetail = detailAccessLost
+    ? undefined
+    : detailQuery.data;
+  const activeConversation = conversation ?? visibleConversationDetail;
 
   const messagesQuery = useChatMessagesQuery(organizationId, conversationId, {
     refetchInterval: IS_TEST_ENV
@@ -169,9 +176,14 @@ export default function MiniChatWindow({
     getConversationDisplayName(activeConversation, actorId) || t("title");
   const isOnline = Boolean(peer?.isOnline);
   const activeType = activeConversation?.type;
+  const freshDetailCapabilities =
+    visibleConversationDetail?.id === conversationId
+      ? visibleConversationDetail.capabilities
+      : undefined;
   const dmAssistantEnabled = isDmAssistantEnabledForConversation(
     activeConversation,
     capabilities,
+    freshDetailCapabilities,
   );
 
   const typingNames = Object.values(typingUsers);
@@ -406,11 +418,12 @@ export default function MiniChatWindow({
     content: string,
     clientMessageId: string,
     files: readonly File[] = [],
+    replyToMessageId?: string,
     mentionUserIds: readonly string[] = [],
     assistantMention?: ChatAssistantMentionInput,
+    clearDraftReply = true,
   ): Promise<boolean> => {
     if (!conversationId) return false;
-    const replyToMessageId = replyingTo?.id;
     setIsSending(true);
     setSendErrorKey(null);
     try {
@@ -447,7 +460,7 @@ export default function MiniChatWindow({
       if (contextMessageId) {
         onExitContext();
       }
-      if (replyToMessageId) {
+      if (clearDraftReply && replyToMessageId) {
         setReplyingTo((current) =>
           current?.id === replyToMessageId ? null : current,
         );
@@ -459,6 +472,14 @@ export default function MiniChatWindow({
     } catch (error) {
       console.error("Failed to send chat message:", error);
       setSendErrorKey(resolveChatSendErrorKey(error));
+      if (error instanceof ApiError && error.code === "CHAT_AI_NOT_ENABLED") {
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.conversations(organizationId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.conversation(organizationId, conversationId),
+        });
+      }
       return false;
     } finally {
       setIsSending(false);
@@ -470,13 +491,29 @@ export default function MiniChatWindow({
   ): Promise<boolean> => {
     const payload = getAssistantRetryPayload(triggerMessage);
     if (!payload) return false;
-    return sendMessage(
+    const fingerprint = buildAssistantRetryFingerprint(triggerMessage, payload);
+    const existing = pendingAssistantRetries.current.get(triggerMessage.id);
+    const clientMessageId =
+      existing?.fingerprint === fingerprint
+        ? existing.clientMessageId
+        : crypto.randomUUID();
+    pendingAssistantRetries.current.set(triggerMessage.id, {
+      fingerprint,
+      clientMessageId,
+    });
+    const sent = await sendMessage(
       payload.content,
-      crypto.randomUUID(),
+      clientMessageId,
       [],
+      triggerMessage.replyToMessageId ?? undefined,
       [],
       payload.assistantMention,
+      false,
     );
+    if (sent) {
+      pendingAssistantRetries.current.delete(triggerMessage.id);
+    }
+    return sent;
   };
 
   const saveMessageEdit = async (
@@ -503,9 +540,11 @@ export default function MiniChatWindow({
         chatKeys.messages(organizationId, conversationId),
         (page) => mergeChatMessage(page, updated),
       );
-      await queryClient.invalidateQueries({
-        queryKey: chatKeys.messages(organizationId, conversationId),
-      });
+      await invalidateConversationMessageQueries(
+        queryClient,
+        organizationId,
+        conversationId,
+      );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.conversations(organizationId),
       });
@@ -525,9 +564,11 @@ export default function MiniChatWindow({
         chatKeys.messages(organizationId, conversationId),
         (page) => mergeChatMessage(page, updated),
       );
-      await queryClient.invalidateQueries({
-        queryKey: chatKeys.messages(organizationId, conversationId),
-      });
+      await invalidateConversationMessageQueries(
+        queryClient,
+        organizationId,
+        conversationId,
+      );
       await queryClient.invalidateQueries({
         queryKey: chatKeys.conversations(organizationId),
       });
@@ -833,7 +874,23 @@ export default function MiniChatWindow({
         onCancelReply={() => setReplyingTo(null)}
         members={activeConversation?.members ?? []}
         onTyping={handleComposerTyping}
-        onSend={sendMessage}
+        onSend={(
+          content,
+          clientMessageId,
+          files,
+          mentionUserIds,
+          assistantMention,
+        ) =>
+          sendMessage(
+            content,
+            clientMessageId,
+            files,
+            replyingTo?.id,
+            mentionUserIds,
+            assistantMention,
+            true,
+          )
+        }
       />
     </section>
   );

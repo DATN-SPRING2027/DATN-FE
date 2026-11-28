@@ -1,6 +1,17 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api-client";
 import {
+  ASSISTANT_STATE_TOMBSTONE_MAX_ENTRIES,
+  ASSISTANT_STATE_TOMBSTONE_TTL_MS,
+  clearAssistantStateTombstones,
+  getAssistantStateTombstone,
+  isSameAssistantState,
+  mergeAssistantState,
+  reconcileMessageAssistantState,
+  reconcileMessagePageAssistantState,
+  recordAssistantStateTombstone,
+} from "@/lib/queries/chat/assistant-state";
+import {
   chatKeys,
   CONTINUUM_AI_HANDLE,
   isAssistantMessage,
@@ -15,6 +26,17 @@ import {
   type ChatPage,
 } from "@/lib/queries/chat/useChat";
 import { foldSearchText, matchesNamePrefixes } from "./search-text";
+
+export {
+  ASSISTANT_STATE_TOMBSTONE_MAX_ENTRIES,
+  ASSISTANT_STATE_TOMBSTONE_TTL_MS,
+  clearAssistantStateTombstones,
+  getAssistantStateTombstone,
+  mergeAssistantState,
+  reconcileMessageAssistantState,
+  reconcileMessagePageAssistantState,
+  recordAssistantStateTombstone,
+};
 
 const VALID_ASSISTANT_STATUSES = new Set<ChatAssistantStatus>([
   "PENDING",
@@ -87,12 +109,14 @@ export function buildAssistantMentionInput(
 export function isDmAssistantEnabledForConversation(
   conversation: Pick<ChatConversation, "type" | "capabilities"> | undefined,
   fallbackCapabilities?: ChatCapabilities,
+  preferredCapabilities?: ChatCapabilities,
 ): boolean {
   if (!conversation || conversation.type !== "DIRECT") {
     return false;
   }
   return Boolean(
-    conversation.capabilities?.dmAssistantEnabled ??
+    preferredCapabilities?.dmAssistantEnabled ??
+      conversation.capabilities?.dmAssistantEnabled ??
       fallbackCapabilities?.dmAssistantEnabled,
   );
 }
@@ -111,6 +135,27 @@ export function getAssistantRetryPayload(triggerMessage: ChatMessage): {
     content: `@${CONTINUUM_AI_HANDLE} ${query}`,
     assistantMention: buildAssistantMentionInput(query),
   };
+}
+
+export function buildAssistantRetryFingerprint(
+  triggerMessage: Pick<
+    ChatMessage,
+    "conversationId" | "replyToMessageId" | "assistantState"
+  >,
+  payload: Readonly<{
+    content: string;
+    assistantMention: ChatAssistantMentionInput;
+  }>,
+): string {
+  return JSON.stringify([
+    triggerMessage.conversationId,
+    triggerMessage.replyToMessageId ?? null,
+    triggerMessage.assistantState?.jobId ?? null,
+    payload.content,
+    payload.assistantMention.handle,
+    payload.assistantMention.query ?? "",
+    payload.assistantMention.timezone ?? "",
+  ]);
 }
 
 export function resolveChatSendErrorKey(error: unknown): string {
@@ -173,10 +218,14 @@ export function applyAssistantStatusToMessagePage(
   };
   const data = page.data.map((message) => {
     if (message.id !== event.triggerMessageId) return message;
+    const merged = mergeAssistantState(message.assistantState, nextState);
+    if (!merged || isSameAssistantState(message.assistantState, merged)) {
+      return message;
+    }
     changed = true;
     return {
       ...message,
-      assistantState: nextState,
+      assistantState: merged,
     };
   });
   return changed ? { ...page, data } : page;
@@ -186,32 +235,43 @@ export function syncTriggerStateFromAssistantMessage(
   page: ChatPage<ChatMessage> | undefined,
   incoming: ChatMessage,
 ): ChatPage<ChatMessage> | undefined {
-  if (!page || !isAssistantMessage(incoming) || !incoming.triggerMessageId) {
+  if (!isAssistantMessage(incoming) || !incoming.triggerMessageId) {
     return page;
   }
   const resolvedStatus: ChatAssistantStatus =
     incoming.assistantStatus === "INSUFFICIENT_EVIDENCE"
       ? "INSUFFICIENT_EVIDENCE"
       : "COMPLETED";
+  const existingTrigger = page?.data.find(
+    (item) => item.id === incoming.triggerMessageId,
+  );
+  const tracked = getAssistantStateTombstone(incoming.triggerMessageId);
+  const incomingState: ChatAssistantJobState = {
+    jobId:
+      existingTrigger?.assistantState?.jobId ?? tracked?.jobId ?? incoming.id,
+    status: resolvedStatus,
+    failureCode: null,
+    responseMessageId: incoming.id,
+    updatedAt: incoming.createdAt,
+  };
+  const effectiveState = recordAssistantStateTombstone(
+    incoming.triggerMessageId,
+    incomingState,
+  );
+  if (!page) {
+    return page;
+  }
   let changed = false;
   const data = page.data.map((item) => {
     if (item.id !== incoming.triggerMessageId) return item;
-    if (
-      item.assistantState?.status === resolvedStatus &&
-      item.assistantState?.responseMessageId === incoming.id
-    ) {
+    const merged = mergeAssistantState(item.assistantState, effectiveState);
+    if (!merged || isSameAssistantState(item.assistantState, merged)) {
       return item;
     }
     changed = true;
     return {
       ...item,
-      assistantState: {
-        jobId: item.assistantState?.jobId ?? incoming.id,
-        status: resolvedStatus,
-        failureCode: null,
-        responseMessageId: incoming.id,
-        updatedAt: incoming.createdAt,
-      },
+      assistantState: merged,
     };
   });
   return changed ? { ...page, data } : page;
@@ -222,22 +282,45 @@ export function applyAssistantStatusToCaches(
   organizationId: string,
   event: ChatAssistantStatusEvent,
 ): void {
+  const incomingState: ChatAssistantJobState = {
+    jobId: event.jobId,
+    status: event.status,
+    failureCode: event.failureCode,
+    responseMessageId: event.responseMessageId,
+    updatedAt: event.updatedAt,
+  };
+  const effectiveState = recordAssistantStateTombstone(
+    event.triggerMessageId,
+    incomingState,
+  );
+  const effectiveEvent: ChatAssistantStatusEvent = {
+    ...event,
+    jobId: effectiveState.jobId,
+    status: effectiveState.status,
+    failureCode: effectiveState.failureCode,
+    responseMessageId: effectiveState.responseMessageId,
+    updatedAt: effectiveState.updatedAt,
+  };
+
   const baseKey = chatKeys.messages(organizationId, event.conversationId);
   queryClient.setQueriesData<ChatPage<ChatMessage>>(
     { queryKey: baseKey },
-    (page) => applyAssistantStatusToMessagePage(page, event),
+    (page) => applyAssistantStatusToMessagePage(page, effectiveEvent),
   );
 
   if (
-    event.status === "COMPLETED" ||
-    event.status === "INSUFFICIENT_EVIDENCE"
+    (event.status === "COMPLETED" ||
+      event.status === "INSUFFICIENT_EVIDENCE") &&
+    (effectiveEvent.status === "COMPLETED" ||
+      effectiveEvent.status === "INSUFFICIENT_EVIDENCE")
   ) {
-    const regularPage = queryClient.getQueryData<ChatPage<ChatMessage>>(baseKey);
+    const responseId =
+      effectiveEvent.responseMessageId ?? event.responseMessageId;
+    const regularPage =
+      queryClient.getQueryData<ChatPage<ChatMessage>>(baseKey);
     const hasResponse =
-      Boolean(event.responseMessageId) &&
-      Boolean(
-        regularPage?.data.some((item) => item.id === event.responseMessageId),
-      );
+      Boolean(responseId) &&
+      Boolean(regularPage?.data.some((item) => item.id === responseId));
     if (!hasResponse) {
       void queryClient.invalidateQueries({ queryKey: baseKey });
       void queryClient.invalidateQueries({
@@ -245,4 +328,35 @@ export function applyAssistantStatusToCaches(
       });
     }
   }
+}
+
+export function invalidateConversationMessageQueries(
+  queryClient: QueryClient,
+  organizationId: string,
+  conversationId: string,
+): Promise<void> {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: chatKeys.messages(organizationId, conversationId),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: chatKeys.search(organizationId, conversationId),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: chatKeys.toolsSearch(organizationId),
+      predicate: (query) => {
+        const queryCid = query.queryKey[4];
+        const onlyCurrent = query.queryKey[10];
+        return (
+          queryCid === undefined ||
+          queryCid === "" ||
+          queryCid === conversationId ||
+          onlyCurrent === false
+        );
+      },
+    }),
+    queryClient.invalidateQueries({
+      queryKey: chatKeys.toolsLibrary(organizationId, conversationId),
+    }),
+  ]).then(() => undefined);
 }

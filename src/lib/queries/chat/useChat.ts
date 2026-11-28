@@ -1,6 +1,7 @@
 "use client";
 
 import { apiClient } from "@/lib/api-client";
+import { reconcileMessagePageAssistantState } from "./assistant-state";
 import { normalizeChatAttachmentUrl } from "./attachment-url";
 import {
   useInfiniteQuery,
@@ -194,12 +195,20 @@ export const chatKeys = {
     search
       ? (["chat", organizationId, "conversations", "search", search] as const)
       : (["chat", organizationId, "conversations"] as const),
+  conversation: (organizationId: string, conversationId: string) =>
+    ["chat", organizationId, "detail", conversationId] as const,
   candidates: (organizationId: string, search: string) =>
     ["chat", organizationId, "candidates", search] as const,
   messages: (organizationId: string, conversationId: string) =>
     ["chat", organizationId, "messages", conversationId] as const,
-  search: (organizationId: string, conversationId: string, query: string) =>
-    ["chat", organizationId, "search", conversationId, query] as const,
+  search: (organizationId: string, conversationId: string, query?: string) =>
+    query !== undefined
+      ? (["chat", organizationId, "search", conversationId, query] as const)
+      : (["chat", organizationId, "search", conversationId] as const),
+  toolsSearch: (organizationId: string) =>
+    ["chat", organizationId, "tools", "search"] as const,
+  toolsLibrary: (organizationId: string, conversationId: string) =>
+    ["chat", organizationId, "tools", "library", conversationId] as const,
   context: (
     organizationId: string,
     conversationId: string,
@@ -491,14 +500,23 @@ export function useChatMessagesQuery(
   const client = useQueryClient();
   return useQuery({
     queryKey: chatKeys.messages(organizationId, conversationId),
-    queryFn: ({ signal }) =>
-      chatApi.syncMessages(
+    queryFn: async ({ signal }) => {
+      const previousPage = client.getQueryData<ChatPage<ChatMessage>>(
+        chatKeys.messages(organizationId, conversationId),
+      );
+      const fetched = await chatApi.syncMessages(
         conversationId,
-        client.getQueryData<ChatPage<ChatMessage>>(
-          chatKeys.messages(organizationId, conversationId),
-        )?.data,
+        previousPage?.data,
         signal,
-      ),
+      );
+      const latestCached = client.getQueryData<ChatPage<ChatMessage>>(
+        chatKeys.messages(organizationId, conversationId),
+      );
+      return reconcileMessagePageAssistantState(
+        fetched,
+        latestCached ?? previousPage,
+      );
+    },
     enabled: Boolean(organizationId && conversationId),
     retry: false,
     staleTime: 0,
@@ -517,10 +535,20 @@ export function useChatMessageContextQuery(
   conversationId: string,
   messageId: string,
 ) {
+  const client = useQueryClient();
   return useQuery({
     queryKey: chatKeys.context(organizationId, conversationId, messageId),
-    queryFn: ({ signal }) =>
-      chatApi.messageContext(conversationId, messageId, signal),
+    queryFn: async ({ signal }) => {
+      const fetched = await chatApi.messageContext(
+        conversationId,
+        messageId,
+        signal,
+      );
+      const latestCached = client.getQueryData<ChatPage<ChatMessage>>(
+        chatKeys.context(organizationId, conversationId, messageId),
+      );
+      return reconcileMessagePageAssistantState(fetched, latestCached);
+    },
     enabled: Boolean(organizationId && conversationId && messageId),
     retry: false,
   });
