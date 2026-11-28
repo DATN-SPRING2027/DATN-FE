@@ -8,14 +8,18 @@ import {
 import {
   ASSISTANT_STATE_TOMBSTONE_MAX_ENTRIES,
   ASSISTANT_STATE_TOMBSTONE_TTL_MS,
+  applyAssistantStatusToMessagePage,
   clearAssistantStateTombstones,
   getAssistantStateTombstone,
   invalidateConversationMessageQueries,
   isDmAssistantEnabledForConversation,
   mergeAssistantState,
+  mergeMessage,
   reconcileMessageAssistantState,
   recordAssistantStateTombstone,
+  resolveFreshDmAssistantCapability,
 } from "./assistant-utils";
+import { mergeChatMessage } from "./floating/chat-shared-helpers";
 
 afterEach(() => {
   clearAssistantStateTombstones();
@@ -209,6 +213,294 @@ describe("isDmAssistantEnabledForConversation", () => {
         undefined,
       ),
     ).toBe(true);
+  });
+});
+
+describe("mergeMessage & mergeChatMessage monotonic protection", () => {
+  it("preserves deletion tombstone and clears assistantState when late POST arrives after WS message.deleted", () => {
+    const deletedFromWs = makeMessage({
+      id: "trigger-del-1",
+      content: "",
+      deletedAt: "2026-11-28T08:01:00.000Z",
+      attachments: [],
+      reactions: [],
+      assistantState: undefined,
+    });
+    const latePost = makeMessage({
+      id: "trigger-del-1",
+      content: "@continuumAI Secret draft that was deleted",
+      deletedAt: null,
+      attachments: [
+        {
+          id: "att-1",
+          name: "spec.pdf",
+          contentType: "application/pdf",
+          size: 1024,
+          kind: "DOCUMENT",
+        },
+      ],
+      assistantState: makeState({
+        jobId: "job-del-1",
+        status: "PENDING",
+        updatedAt: "2026-11-28T08:00:00.000Z",
+      }),
+    });
+
+    const pageAfterDelete = mergeChatMessage(undefined, deletedFromWs);
+    const pageAfterLatePost = mergeChatMessage(pageAfterDelete, latePost);
+    const merged = pageAfterLatePost.data[0]!;
+
+    expect(merged.deletedAt).toBe("2026-11-28T08:01:00.000Z");
+    expect(merged.content).toBe("");
+    expect(merged.attachments).toEqual([]);
+    expect(merged.reactions).toEqual([]);
+    expect(merged.assistantState).toBeUndefined();
+
+    // Even if a subsequent stale page evicted the item and late POST arrives with no existing item, tombstone still blocks resurrection
+    const mergedViaTombstone = mergeMessage(undefined, latePost);
+    expect(mergedViaTombstone.deletedAt).toBe("2026-11-28T08:01:00.000Z");
+    expect(mergedViaTombstone.content).toBe("");
+    expect(mergedViaTombstone.attachments).toEqual([]);
+    expect(mergedViaTombstone.assistantState).toBeUndefined();
+  });
+
+  it("clears assistantState when incoming message is deleted and refuses late assistant.status on deleted trigger", () => {
+    const existingPending = makeMessage({
+      id: "trigger-del-2",
+      assistantState: makeState({
+        jobId: "job-del-2",
+        status: "PROCESSING",
+        updatedAt: "2026-11-28T08:00:02.000Z",
+      }),
+    });
+    recordAssistantStateTombstone(
+      "trigger-del-2",
+      makeState({
+        jobId: "job-del-2",
+        status: "CANCELLED",
+        failureCode: "TRIGGER_DELETED",
+        updatedAt: "2026-11-28T08:00:04.000Z",
+      }),
+    );
+
+    const incomingDeleted = makeMessage({
+      id: "trigger-del-2",
+      content: "should be redacted",
+      deletedAt: "2026-11-28T08:00:05.000Z",
+      assistantState: makeState({
+        jobId: "job-del-2",
+        status: "CANCELLED",
+        failureCode: "TRIGGER_DELETED",
+        updatedAt: "2026-11-28T08:00:04.000Z",
+      }),
+    });
+
+    const merged = mergeMessage(existingPending, incomingDeleted);
+    expect(merged.deletedAt).toBe("2026-11-28T08:00:05.000Z");
+    expect(merged.content).toBe("");
+    expect(merged.attachments).toEqual([]);
+    expect(merged.assistantState).toBeUndefined();
+
+    const pageAfterLateStatus = applyAssistantStatusToMessagePage(
+      { data: [merged], nextCursor: null },
+      {
+        conversationId: "dm-1",
+        triggerMessageId: "trigger-del-2",
+        jobId: "job-del-2",
+        status: "PROCESSING",
+        failureCode: null,
+        responseMessageId: null,
+        updatedAt: "2026-11-28T08:00:06.000Z",
+      },
+    );
+    expect(pageAfterLateStatus?.data[0]?.assistantState).toBeUndefined();
+  });
+
+  it("preserves newer edit content, editedAt, contentVersion, and isEdited when late POST or older edit arrives", () => {
+    const editedFromWs = makeMessage({
+      id: "trigger-edit-1",
+      content: "@continuumAI Updated sprint question",
+      editedAt: "2026-11-28T08:01:00.000Z",
+      contentVersion: 2,
+      isEdited: true,
+      assistantState: makeState({
+        jobId: "job-edit-1",
+        status: "CANCELLED",
+        failureCode: "SOURCE_CHANGED",
+        updatedAt: "2026-11-28T08:01:01.000Z",
+      }),
+    });
+    const latePost = makeMessage({
+      id: "trigger-edit-1",
+      content: "@continuumAI Original sprint question",
+      editedAt: null,
+      contentVersion: 1,
+      isEdited: false,
+      assistantState: makeState({
+        jobId: "job-edit-1",
+        status: "PENDING",
+        updatedAt: "2026-11-28T08:00:00.000Z",
+      }),
+    });
+
+    const afterLatePost = mergeMessage(editedFromWs, latePost);
+    expect(afterLatePost.content).toBe("@continuumAI Updated sprint question");
+    expect(afterLatePost.editedAt).toBe("2026-11-28T08:01:00.000Z");
+    expect(afterLatePost.contentVersion).toBe(2);
+    expect(afterLatePost.isEdited).toBe(true);
+    expect(afterLatePost.assistantState?.status).toBe("CANCELLED");
+
+    // Also preserves newer editedAt even when contentVersion is omitted
+    const editedNoVersion = makeMessage({
+      id: "trigger-edit-2",
+      content: "Second edit",
+      editedAt: "2026-11-28T08:03:00.000Z",
+    });
+    const olderEditNoVersion = makeMessage({
+      id: "trigger-edit-2",
+      content: "First edit",
+      editedAt: "2026-11-28T08:02:00.000Z",
+    });
+    const mergedOlder = mergeMessage(editedNoVersion, olderEditNoVersion);
+    expect(mergedOlder.content).toBe("Second edit");
+    expect(mergedOlder.editedAt).toBe("2026-11-28T08:03:00.000Z");
+
+    // Accepts a genuinely newer edit
+    const newerEdit = makeMessage({
+      id: "trigger-edit-1",
+      content: "@continuumAI Third revision",
+      editedAt: "2026-11-28T08:04:00.000Z",
+      contentVersion: 3,
+      isEdited: true,
+    });
+    const afterNewerEdit = mergeMessage(editedFromWs, newerEdit);
+    expect(afterNewerEdit.content).toBe("@continuumAI Third revision");
+    expect(afterNewerEdit.contentVersion).toBe(3);
+    expect(afterNewerEdit.editedAt).toBe("2026-11-28T08:04:00.000Z");
+  });
+});
+
+describe("resolveFreshDmAssistantCapability", () => {
+  const directConv = {
+    type: "DIRECT" as const,
+    capabilities: { dmAssistantEnabled: false },
+  };
+
+  it("ignores disabled stale cached detail=true when list freshly reports false", () => {
+    expect(
+      resolveFreshDmAssistantCapability({
+        conversation: directConv,
+        detail: {
+          capabilities: { dmAssistantEnabled: true },
+          dataUpdatedAt: 1_000,
+          enabled: false,
+        },
+        list: {
+          capabilities: { dmAssistantEnabled: false },
+          dataUpdatedAt: 5_000,
+          enabled: true,
+        },
+      }),
+    ).toBe(false);
+
+    // Even if disabled detail had a later cached timestamp than list, active list wins
+    expect(
+      resolveFreshDmAssistantCapability({
+        conversation: directConv,
+        detail: {
+          capabilities: { dmAssistantEnabled: true },
+          dataUpdatedAt: 9_000,
+          enabled: false,
+        },
+        list: {
+          capabilities: { dmAssistantEnabled: false },
+          dataUpdatedAt: 5_000,
+          enabled: true,
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("prefers strictly newer dataUpdatedAt when both detail and list are active", () => {
+    expect(
+      resolveFreshDmAssistantCapability({
+        conversation: directConv,
+        detail: {
+          capabilities: { dmAssistantEnabled: true },
+          dataUpdatedAt: 1_000,
+          enabled: true,
+        },
+        list: {
+          capabilities: { dmAssistantEnabled: false },
+          dataUpdatedAt: 2_000,
+          enabled: true,
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      resolveFreshDmAssistantCapability({
+        conversation: directConv,
+        detail: {
+          capabilities: { dmAssistantEnabled: true },
+          dataUpdatedAt: 3_000,
+          enabled: true,
+        },
+        list: {
+          capabilities: { dmAssistantEnabled: false },
+          dataUpdatedAt: 2_000,
+          enabled: true,
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it("fails closed when timestamps are equal or unknown and either source explicitly reports false", () => {
+    expect(
+      resolveFreshDmAssistantCapability({
+        conversation: directConv,
+        detail: {
+          capabilities: { dmAssistantEnabled: true },
+          dataUpdatedAt: 2_000,
+          enabled: true,
+        },
+        list: {
+          capabilities: { dmAssistantEnabled: false },
+          dataUpdatedAt: 2_000,
+          enabled: true,
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      resolveFreshDmAssistantCapability({
+        conversation: directConv,
+        detail: {
+          capabilities: { dmAssistantEnabled: false },
+          enabled: true,
+        },
+        list: {
+          capabilities: { dmAssistantEnabled: true },
+          enabled: true,
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      resolveFreshDmAssistantCapability({
+        conversation: { type: "ROOM", capabilities: { dmAssistantEnabled: true } },
+        detail: {
+          capabilities: { dmAssistantEnabled: true },
+          dataUpdatedAt: 5_000,
+          enabled: true,
+        },
+        list: {
+          capabilities: { dmAssistantEnabled: true },
+          dataUpdatedAt: 5_000,
+          enabled: true,
+        },
+      }),
+    ).toBe(false);
   });
 });
 

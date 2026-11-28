@@ -29,8 +29,8 @@ import {
   buildAssistantRetryFingerprint,
   getAssistantRetryPayload,
   invalidateConversationMessageQueries,
-  isDmAssistantEnabledForConversation,
   resolveChatSendErrorKey,
+  resolveFreshDmAssistantCapability,
 } from "../assistant-utils";
 import ChatAvatar from "../ChatAvatar";
 import ChatDraftComposer from "../ChatDraftComposer";
@@ -42,6 +42,7 @@ import {
   getConversationPeer,
   hasParticipantDelivered,
   mergeChatMessage,
+  mergeOlderChatMessages,
   type FloatingConnectionState,
 } from "./chat-shared-helpers";
 
@@ -56,6 +57,7 @@ export type MiniChatWindowProps = Readonly<{
   conversationId: string;
   conversation?: ChatConversation;
   capabilities?: ChatCapabilities;
+  capabilitiesUpdatedAt?: number;
   highlightedMessageId?: string;
   contextMessageId?: string;
   typingUsers?: Readonly<Record<string, string>>;
@@ -76,6 +78,7 @@ export default function MiniChatWindow({
   conversationId,
   conversation,
   capabilities,
+  capabilitiesUpdatedAt,
   highlightedMessageId = "",
   contextMessageId = "",
   typingUsers = EMPTY_TYPING_USERS,
@@ -111,10 +114,13 @@ export default function MiniChatWindow({
     new Map<string, { fingerprint: string; clientMessageId: string }>(),
   );
 
+  const detailQueryEnabled = Boolean(
+    !conversation && organizationId && conversationId,
+  );
   const detailQuery = useQuery({
     queryKey: chatKeys.conversation(organizationId, conversationId),
     queryFn: () => chatFeatures.conversation(conversationId),
-    enabled: Boolean(!conversation && organizationId && conversationId),
+    enabled: detailQueryEnabled,
     retry: false,
   });
 
@@ -180,11 +186,28 @@ export default function MiniChatWindow({
     visibleConversationDetail?.id === conversationId
       ? visibleConversationDetail.capabilities
       : undefined;
-  const dmAssistantEnabled = isDmAssistantEnabledForConversation(
-    activeConversation,
-    capabilities,
-    freshDetailCapabilities,
-  );
+  const listCapabilities = conversation?.capabilities ?? capabilities;
+  const listDataUpdatedAt =
+    capabilitiesUpdatedAt ??
+    queryClient.getQueryState(chatKeys.conversations(organizationId))
+      ?.dataUpdatedAt ??
+    0;
+  const dmAssistantEnabled = resolveFreshDmAssistantCapability({
+    conversation: activeConversation,
+    detail: {
+      capabilities: freshDetailCapabilities,
+      dataUpdatedAt: detailQuery.dataUpdatedAt,
+      enabled: detailQueryEnabled,
+    },
+    list: {
+      capabilities: listCapabilities,
+      dataUpdatedAt: listDataUpdatedAt,
+      enabled: Boolean(
+        organizationId &&
+          (conversation !== undefined || capabilities !== undefined),
+      ),
+    },
+  });
 
   const typingNames = Object.values(typingUsers);
   const typingStatus =
@@ -387,13 +410,9 @@ export default function MiniChatWindow({
       const targetKey = useContextFeed
         ? chatKeys.context(organizationId, conversationId, effectiveContextId)
         : chatKeys.messages(organizationId, conversationId);
-      queryClient.setQueryData<ChatPage<ChatMessage>>(targetKey, (page) => ({
-        data: [...older.data, ...(page?.data ?? [])].filter(
-          (message, index, all) =>
-            all.findIndex((item) => item.id === message.id) === index,
-        ),
-        nextCursor: older.nextCursor,
-      }));
+      queryClient.setQueryData<ChatPage<ChatMessage>>(targetKey, (page) =>
+        mergeOlderChatMessages(page, older),
+      );
       requestAnimationFrame(() => {
         const current = scrollRef.current;
         if (current) {

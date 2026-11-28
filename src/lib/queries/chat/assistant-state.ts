@@ -23,18 +23,67 @@ type AssistantStateTombstoneEntry = Readonly<{
   recordedAt: number;
 }>;
 
+type DeletedMessageTombstoneEntry = Readonly<{
+  deletedAt: string;
+  recordedAt: number;
+}>;
+
 const assistantStateTombstones = new Map<
   string,
   AssistantStateTombstoneEntry
 >();
 
+const deletedMessageTombstones = new Map<
+  string,
+  DeletedMessageTombstoneEntry
+>();
+
 export function clearAssistantStateTombstones(): void {
   assistantStateTombstones.clear();
+  deletedMessageTombstones.clear();
 }
 
 registerSessionCacheCleanup(() => {
   clearAssistantStateTombstones();
 });
+
+export function getDeletedMessageTombstone(
+  messageId: string,
+  now = Date.now(),
+): string | undefined {
+  const entry = deletedMessageTombstones.get(messageId);
+  if (!entry) return undefined;
+  if (now - entry.recordedAt > ASSISTANT_STATE_TOMBSTONE_TTL_MS) {
+    deletedMessageTombstones.delete(messageId);
+    return undefined;
+  }
+  deletedMessageTombstones.delete(messageId);
+  deletedMessageTombstones.set(messageId, entry);
+  return entry.deletedAt;
+}
+
+export function recordDeletedMessageTombstone(
+  messageId: string,
+  deletedAt: string,
+  now = Date.now(),
+): string {
+  const existing = getDeletedMessageTombstone(messageId, now);
+  const resolvedDeletedAt = existing ?? deletedAt;
+  assistantStateTombstones.delete(messageId);
+  deletedMessageTombstones.delete(messageId);
+  deletedMessageTombstones.set(messageId, {
+    deletedAt: resolvedDeletedAt,
+    recordedAt: now,
+  });
+  while (
+    deletedMessageTombstones.size > ASSISTANT_STATE_TOMBSTONE_MAX_ENTRIES
+  ) {
+    const oldestKey = deletedMessageTombstones.keys().next().value;
+    if (oldestKey === undefined) break;
+    deletedMessageTombstones.delete(oldestKey);
+  }
+  return resolvedDeletedAt;
+}
 
 function isSyntheticJobId(state: ChatAssistantJobState): boolean {
   return (
@@ -172,13 +221,133 @@ export function recordAssistantStateTombstone(
   return merged;
 }
 
-export function reconcileMessageAssistantState(
+function isExistingEditStrictlyNewer(
+  existing: ChatMessage,
   incoming: ChatMessage,
-  existing?: ChatMessage,
+): boolean {
+  const existingVersion = existing.contentVersion;
+  const incomingVersion = incoming.contentVersion;
+
+  if (
+    typeof existingVersion === "number" &&
+    typeof incomingVersion === "number"
+  ) {
+    if (existingVersion !== incomingVersion) {
+      return existingVersion > incomingVersion;
+    }
+  } else if (
+    typeof existingVersion === "number" ||
+    typeof incomingVersion === "number"
+  ) {
+    if (existing.editedAt && !incoming.editedAt) {
+      return true;
+    }
+    if (!existing.editedAt && incoming.editedAt) {
+      return false;
+    }
+    const resolvedExistingVersion = existingVersion ?? 1;
+    const resolvedIncomingVersion = incomingVersion ?? 1;
+    if (resolvedExistingVersion !== resolvedIncomingVersion) {
+      return resolvedExistingVersion > resolvedIncomingVersion;
+    }
+  }
+
+  if (existing.editedAt && !incoming.editedAt) {
+    return true;
+  }
+  if (!existing.editedAt || !incoming.editedAt) {
+    return false;
+  }
+  const existingEditedTs = Date.parse(existing.editedAt);
+  const incomingEditedTs = Date.parse(incoming.editedAt);
+  if (!Number.isNaN(existingEditedTs) && !Number.isNaN(incomingEditedTs)) {
+    return existingEditedTs > incomingEditedTs;
+  }
+  return false;
+}
+
+function redactDeletedMessage(
+  base: ChatMessage,
+  deletedAt: string,
 ): ChatMessage {
-  const tombstone = getAssistantStateTombstone(incoming.id);
+  const alreadyRedacted =
+    base.deletedAt === deletedAt &&
+    base.content === "" &&
+    base.attachments.length === 0 &&
+    base.reactions.length === 0 &&
+    base.assistantState === undefined &&
+    (base.mentionUserIds === undefined || base.mentionUserIds.length === 0) &&
+    !base.isPinned &&
+    !base.forwardedFrom;
+  if (alreadyRedacted) {
+    return base;
+  }
+  return {
+    ...base,
+    content: "",
+    deletedAt,
+    attachments: [],
+    reactions: [],
+    ...(base.mentionUserIds !== undefined ? { mentionUserIds: [] } : {}),
+    ...(base.isPinned !== undefined ? { isPinned: false } : {}),
+    ...(base.forwardedFrom !== undefined ? { forwardedFrom: null } : {}),
+    assistantState: undefined,
+  };
+}
+
+export function mergeMessage(
+  existing: ChatMessage | undefined,
+  incoming: ChatMessage,
+): ChatMessage {
+  const deletedTombstone = getDeletedMessageTombstone(incoming.id);
+  const effectiveDeletedAt =
+    existing?.deletedAt ?? incoming.deletedAt ?? deletedTombstone ?? null;
+
+  if (effectiveDeletedAt) {
+    const recordedDeletedAt = recordDeletedMessageTombstone(
+      incoming.id,
+      effectiveDeletedAt,
+    );
+    const base =
+      existing?.deletedAt && !incoming.deletedAt
+        ? { ...incoming, ...existing }
+        : existing && !incoming.deletedAt
+          ? { ...incoming, ...existing }
+          : incoming;
+    return redactDeletedMessage(base, recordedDeletedAt);
+  }
+
+  let mergedBase: ChatMessage = incoming;
+  if (existing && isExistingEditStrictlyNewer(existing, incoming)) {
+    const resolvedContentVersion =
+      existing.contentVersion !== undefined
+        ? existing.contentVersion
+        : incoming.contentVersion;
+    const resolvedIsEdited =
+      existing.isEdited !== undefined
+        ? existing.isEdited
+        : incoming.isEdited !== undefined
+          ? Boolean(existing.editedAt)
+          : undefined;
+    mergedBase = {
+      ...incoming,
+      content: existing.content,
+      editedAt: existing.editedAt,
+      ...(resolvedContentVersion !== undefined
+        ? { contentVersion: resolvedContentVersion }
+        : {}),
+      ...(resolvedIsEdited !== undefined
+        ? { isEdited: resolvedIsEdited }
+        : {}),
+      ...(existing.mentionUserIds !== undefined
+        ? { mentionUserIds: existing.mentionUserIds }
+        : {}),
+    };
+  }
+
+  const tombstone = getAssistantStateTombstone(mergedBase.id);
   if (!existing?.assistantState && !tombstone && !incoming.assistantState) {
-    return incoming;
+    return mergedBase;
   }
   const baseline = mergeAssistantState(existing?.assistantState, tombstone);
   const merged = mergeAssistantState(baseline, incoming.assistantState);
@@ -186,15 +355,22 @@ export function reconcileMessageAssistantState(
     merged &&
     (tombstone || (ASSISTANT_STATUS_RANK[merged.status] ?? 0) >= 2)
   ) {
-    recordAssistantStateTombstone(incoming.id, merged);
+    recordAssistantStateTombstone(mergedBase.id, merged);
   }
-  if (isSameAssistantState(incoming.assistantState, merged)) {
-    return incoming;
+  if (isSameAssistantState(mergedBase.assistantState, merged)) {
+    return mergedBase;
   }
   return {
-    ...incoming,
+    ...mergedBase,
     assistantState: merged ?? null,
   };
+}
+
+export function reconcileMessageAssistantState(
+  incoming: ChatMessage,
+  existing?: ChatMessage,
+): ChatMessage {
+  return mergeMessage(existing, incoming);
 }
 
 export function reconcileMessagePageAssistantState(
@@ -206,10 +382,7 @@ export function reconcileMessagePageAssistantState(
     : undefined;
   let changed = false;
   const data = fetched.data.map((message) => {
-    const reconciled = reconcileMessageAssistantState(
-      message,
-      cachedById?.get(message.id),
-    );
+    const reconciled = mergeMessage(cachedById?.get(message.id), message);
     if (reconciled !== message) {
       changed = true;
     }

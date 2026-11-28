@@ -394,19 +394,17 @@ export function useFloatingChatRealtime({
               isChatMessagePacket(packet.data)
             ) {
               const message = packet.data;
-              const current = queryClient.getQueryData<ChatPage<ChatMessage>>(
-                chatKeys.messages(organizationId, message.conversationId),
-              );
-              const previous = current?.data.find(
-                (item) => item.id === message.id,
-              );
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
-                (page) =>
-                  mergeChatMessage(
+                (page) => {
+                  const previous = page?.data.find(
+                    (item) => item.id === message.id,
+                  );
+                  return mergeChatMessage(
                     page,
                     preserveLocalReactions(message, previous),
-                  ),
+                  );
+                },
               );
               void invalidateConversationMessageQueries(
                 queryClient,

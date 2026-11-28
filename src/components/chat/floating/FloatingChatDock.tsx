@@ -270,6 +270,7 @@ export default function FloatingChatDock() {
                 conversationId={conversationId}
                 conversation={conversationMap.get(conversationId)}
                 capabilities={conversationsCapabilities}
+                capabilitiesUpdatedAt={conversationsQuery.dataUpdatedAt}
                 highlightedMessageId={highlightedMap[conversationId]}
                 contextMessageId={contextMap[conversationId]}
                 typingUsers={typingByConversation[conversationId]}

@@ -167,6 +167,8 @@ export type ChatMessage = Readonly<{
   mentionUserIds?: readonly string[];
   isPinned?: boolean;
   forwardedFrom?: { senderName: string } | null;
+  contentVersion?: number;
+  isEdited?: boolean;
   editedAt: string | null;
   deletedAt: string | null;
   replyToMessageId: string | null;

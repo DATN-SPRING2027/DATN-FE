@@ -5,11 +5,14 @@ import {
   ASSISTANT_STATE_TOMBSTONE_TTL_MS,
   clearAssistantStateTombstones,
   getAssistantStateTombstone,
+  getDeletedMessageTombstone,
   isSameAssistantState,
   mergeAssistantState,
+  mergeMessage,
   reconcileMessageAssistantState,
   reconcileMessagePageAssistantState,
   recordAssistantStateTombstone,
+  recordDeletedMessageTombstone,
 } from "@/lib/queries/chat/assistant-state";
 import {
   chatKeys,
@@ -32,10 +35,13 @@ export {
   ASSISTANT_STATE_TOMBSTONE_TTL_MS,
   clearAssistantStateTombstones,
   getAssistantStateTombstone,
+  getDeletedMessageTombstone,
   mergeAssistantState,
+  mergeMessage,
   reconcileMessageAssistantState,
   reconcileMessagePageAssistantState,
   recordAssistantStateTombstone,
+  recordDeletedMessageTombstone,
 };
 
 const VALID_ASSISTANT_STATUSES = new Set<ChatAssistantStatus>([
@@ -104,6 +110,65 @@ export function buildAssistantMentionInput(
     query: query.trim(),
     timezone: resolveBrowserTimezone(),
   };
+}
+
+export type DmAssistantCapabilitySource = Readonly<{
+  capabilities?: ChatCapabilities;
+  dataUpdatedAt?: number;
+  enabled?: boolean;
+}>;
+
+export function resolveFreshDmAssistantCapability(input: Readonly<{
+  conversation: Pick<ChatConversation, "type" | "capabilities"> | undefined;
+  detail?: DmAssistantCapabilitySource;
+  list?: DmAssistantCapabilitySource;
+}>): boolean {
+  if (!input.conversation || input.conversation.type !== "DIRECT") {
+    return false;
+  }
+
+  const detailEnabled = input.detail?.enabled ?? true;
+  const detailValue = input.detail?.capabilities?.dmAssistantEnabled;
+  const detailUpdatedAt = input.detail?.dataUpdatedAt ?? 0;
+
+  const listEnabled = input.list?.enabled ?? true;
+  const listValue =
+    input.list?.capabilities?.dmAssistantEnabled ??
+    (input.list === undefined
+      ? input.conversation.capabilities?.dmAssistantEnabled
+      : undefined);
+  const listUpdatedAt = input.list?.dataUpdatedAt ?? 0;
+
+  if (detailValue !== undefined && listValue !== undefined) {
+    if (!detailEnabled && listEnabled) {
+      return listValue;
+    }
+    if (detailEnabled && !listEnabled) {
+      return detailValue;
+    }
+    if (
+      detailUpdatedAt > 0 &&
+      listUpdatedAt > 0 &&
+      detailUpdatedAt !== listUpdatedAt
+    ) {
+      return detailUpdatedAt > listUpdatedAt ? detailValue : listValue;
+    }
+    return detailValue && listValue;
+  }
+
+  if (detailValue !== undefined && detailEnabled) {
+    return detailValue;
+  }
+  if (listValue !== undefined && listEnabled) {
+    return listValue;
+  }
+  if (detailValue !== undefined) {
+    return detailValue;
+  }
+  if (listValue !== undefined) {
+    return listValue;
+  }
+  return Boolean(input.conversation.capabilities?.dmAssistantEnabled);
 }
 
 export function isDmAssistantEnabledForConversation(
@@ -218,6 +283,14 @@ export function applyAssistantStatusToMessagePage(
   };
   const data = page.data.map((message) => {
     if (message.id !== event.triggerMessageId) return message;
+    if (message.deletedAt) {
+      if (message.assistantState === undefined) return message;
+      changed = true;
+      return {
+        ...message,
+        assistantState: undefined,
+      };
+    }
     const merged = mergeAssistantState(message.assistantState, nextState);
     if (!merged || isSameAssistantState(message.assistantState, merged)) {
       return message;
@@ -245,6 +318,22 @@ export function syncTriggerStateFromAssistantMessage(
   const existingTrigger = page?.data.find(
     (item) => item.id === incoming.triggerMessageId,
   );
+  if (
+    existingTrigger?.deletedAt ||
+    getDeletedMessageTombstone(incoming.triggerMessageId)
+  ) {
+    if (!page || !existingTrigger || existingTrigger.assistantState === undefined) {
+      return page;
+    }
+    return {
+      ...page,
+      data: page.data.map((item) =>
+        item.id === incoming.triggerMessageId
+          ? { ...item, assistantState: undefined }
+          : item,
+      ),
+    };
+  }
   const tracked = getAssistantStateTombstone(incoming.triggerMessageId);
   const incomingState: ChatAssistantJobState = {
     jobId:
@@ -264,6 +353,14 @@ export function syncTriggerStateFromAssistantMessage(
   let changed = false;
   const data = page.data.map((item) => {
     if (item.id !== incoming.triggerMessageId) return item;
+    if (item.deletedAt) {
+      if (item.assistantState === undefined) return item;
+      changed = true;
+      return {
+        ...item,
+        assistantState: undefined,
+      };
+    }
     const merged = mergeAssistantState(item.assistantState, effectiveState);
     if (!merged || isSameAssistantState(item.assistantState, merged)) {
       return item;
@@ -282,6 +379,9 @@ export function applyAssistantStatusToCaches(
   organizationId: string,
   event: ChatAssistantStatusEvent,
 ): void {
+  if (getDeletedMessageTombstone(event.triggerMessageId)) {
+    return;
+  }
   const incomingState: ChatAssistantJobState = {
     jobId: event.jobId,
     status: event.status,

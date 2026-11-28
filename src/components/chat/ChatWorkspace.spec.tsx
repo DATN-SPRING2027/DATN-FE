@@ -17,6 +17,7 @@ import {
   CONTINUUM_AI_SENDER_ID,
   type ChatConversation,
   type ChatMessage,
+  type ChatPage,
 } from "@/lib/queries/chat/useChat";
 import { chatFeatures } from "@/lib/queries/chat/features";
 import { clearAssistantStateTombstones } from "./assistant-utils";
@@ -1216,5 +1217,318 @@ it("invalidates ChatTools search and pinned library queries on WS message.update
     expect(client.getQueryState(searchToolsKey)?.isInvalidated).toBe(true);
     expect(client.getQueryState(pinnedToolsKey)?.isInvalidated).toBe(true);
   });
+  client.clear();
+});
+
+it("does not resurrect deleted trigger or overwrite newer edit when late POST /messages resolves in Full Chat", async () => {
+  vi.stubGlobal("WebSocket", TestSocket);
+  Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+    value: vi.fn(),
+    configurable: true,
+  });
+
+  const receipt = {
+    avatarUrl: null,
+    lastReadMessageId: null,
+    lastReadAt: null,
+    lastDeliveredMessageId: null,
+    lastDeliveredAt: null,
+  };
+  const dmConv: ChatConversation = {
+    id: "dm-race-msg",
+    type: "DIRECT",
+    title: null,
+    createdBy: "actor",
+    lastMessageAt: "2026-11-28T08:00:00.000Z",
+    lastMessagePreview: "Hi",
+    lastMessageSenderId: "actor",
+    lastReadMessageId: null,
+    lastReadAt: null,
+    unreadCount: 0,
+    capabilities: { dmAssistantEnabled: true },
+    members: [
+      { userId: "actor", displayName: "Actor", role: "OWNER", ...receipt },
+      { userId: "peer", displayName: "Lan Tran", role: "MEMBER", ...receipt },
+    ],
+  };
+
+  let serverMessages: ChatMessage[] = [];
+  const pendingPosts: Array<(msg: ChatMessage) => void> = [];
+
+  vi.spyOn(chatApi, "conversations").mockResolvedValue({
+    data: [dmConv],
+    nextCursor: null,
+    capabilities: { dmAssistantEnabled: true },
+  });
+  vi.spyOn(chatFeatures, "conversation").mockResolvedValue(dmConv);
+  vi.spyOn(chatFeatures, "draft").mockResolvedValue({
+    content: "",
+    mentionUserIds: [],
+    assistantMention: false,
+    updatedAt: null,
+  });
+  vi.spyOn(chatFeatures, "saveDraft").mockResolvedValue(undefined);
+  vi.spyOn(chatApi, "candidates").mockResolvedValue({ data: [] });
+  vi.spyOn(chatApi, "messages").mockImplementation(async () => ({
+    data: serverMessages,
+    nextCursor: null,
+  }));
+  vi.spyOn(chatApi, "wsTicket").mockResolvedValue({
+    ticket: "test",
+    expiresInSeconds: 30,
+  });
+  vi.spyOn(chatApi, "markDelivered").mockResolvedValue(undefined);
+  vi.spyOn(chatApi, "markRead").mockResolvedValue(undefined);
+  vi.spyOn(chatApi, "sendMessage").mockImplementation(
+    () =>
+      new Promise<ChatMessage>((resolve) => {
+        pendingPosts.push(resolve);
+      }),
+  );
+
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="en" messages={translations}>
+        <ChatWorkspace />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+
+  const composerInput = await screen.findByPlaceholderText("Write a message…");
+  await waitFor(() => expect(TestSocket.instances).toHaveLength(1));
+  const socket = TestSocket.instances[0]!;
+  act(() => socket.connected());
+
+  // (a) WS message.deleted arrives BEFORE late POST /messages resolves
+  fireEvent.change(composerInput, {
+    target: { value: "@continuumAI Delete race trigger" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  await waitFor(() => expect(pendingPosts).toHaveLength(1));
+
+  const deletedTrigger: ChatMessage = {
+    id: "trigger-del-full",
+    conversationId: "dm-race-msg",
+    senderId: "actor",
+    senderName: "Actor",
+    senderAvatarUrl: null,
+    content: "",
+    createdAt: "2026-11-28T08:02:00.000Z",
+    editedAt: null,
+    deletedAt: "2026-11-28T08:02:02.000Z",
+    replyToMessageId: null,
+    replyTo: null,
+    attachments: [],
+    reactions: [],
+  };
+  serverMessages = [deletedTrigger];
+
+  act(() => {
+    socket.onmessage?.({
+      data: JSON.stringify({
+        event: "message.deleted",
+        data: deletedTrigger,
+      }),
+    });
+  });
+
+  await act(async () => {
+    pendingPosts[0]!({
+      id: "trigger-del-full",
+      conversationId: "dm-race-msg",
+      senderId: "actor",
+      senderName: "Actor",
+      senderAvatarUrl: null,
+      content: "@continuumAI Delete race trigger",
+      createdAt: "2026-11-28T08:02:00.000Z",
+      assistantState: {
+        jobId: "job-del-full",
+        status: "PENDING",
+        failureCode: null,
+        responseMessageId: null,
+        updatedAt: "2026-11-28T08:02:00.000Z",
+      },
+      editedAt: null,
+      deletedAt: null,
+      replyToMessageId: null,
+      replyTo: null,
+      attachments: [],
+      reactions: [],
+    });
+  });
+
+  expect(
+    await screen.findByText(translations.chat.messageDeleted),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText("@continuumAI Delete race trigger"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByTestId("assistant-trigger-status-pending"),
+  ).not.toBeInTheDocument();
+  const cachedDeleted = client
+    .getQueryData<ChatPage<ChatMessage>>(
+      chatKeys.messages("organization", "dm-race-msg"),
+    )
+    ?.data.find((m) => m.id === "trigger-del-full");
+  expect(cachedDeleted?.deletedAt).toBe("2026-11-28T08:02:02.000Z");
+  expect(cachedDeleted?.content).toBe("");
+  expect(cachedDeleted?.assistantState).toBeUndefined();
+
+  // (b) WS message.updated arrives BEFORE late POST /messages resolves
+  fireEvent.change(composerInput, {
+    target: { value: "@continuumAI Original edit race" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  await waitFor(() => expect(pendingPosts).toHaveLength(2));
+
+  const editedTrigger: ChatMessage = {
+    id: "trigger-edit-full",
+    conversationId: "dm-race-msg",
+    senderId: "actor",
+    senderName: "Actor",
+    senderAvatarUrl: null,
+    content: "Edited trigger text before POST resolved",
+    createdAt: "2026-11-28T08:03:00.000Z",
+    contentVersion: 2,
+    isEdited: true,
+    editedAt: "2026-11-28T08:03:03.000Z",
+    deletedAt: null,
+    replyToMessageId: null,
+    replyTo: null,
+    attachments: [],
+    reactions: [],
+  };
+  serverMessages = [deletedTrigger, editedTrigger];
+
+  act(() => {
+    socket.onmessage?.({
+      data: JSON.stringify({
+        event: "message.updated",
+        data: editedTrigger,
+      }),
+    });
+  });
+
+  await act(async () => {
+    pendingPosts[1]!({
+      id: "trigger-edit-full",
+      conversationId: "dm-race-msg",
+      senderId: "actor",
+      senderName: "Actor",
+      senderAvatarUrl: null,
+      content: "@continuumAI Original edit race",
+      createdAt: "2026-11-28T08:03:00.000Z",
+      contentVersion: 1,
+      isEdited: false,
+      editedAt: null,
+      deletedAt: null,
+      replyToMessageId: null,
+      replyTo: null,
+      attachments: [],
+      reactions: [],
+    });
+  });
+
+  expect(
+    await screen.findByText("Edited trigger text before POST resolved"),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText("@continuumAI Original edit race"),
+  ).not.toBeInTheDocument();
+  const cachedEdited = client
+    .getQueryData<ChatPage<ChatMessage>>(
+      chatKeys.messages("organization", "dm-race-msg"),
+    )
+    ?.data.find((m) => m.id === "trigger-edit-full");
+  expect(cachedEdited?.content).toBe("Edited trigger text before POST resolved");
+  expect(cachedEdited?.editedAt).toBe("2026-11-28T08:03:03.000Z");
+  expect(cachedEdited?.contentVersion).toBe(2);
+  expect(cachedEdited?.isEdited).toBe(true);
+
+  client.clear();
+});
+
+it("prefers fresher list dmAssistantEnabled=false over stale cached detail dmAssistantEnabled=true in Full Chat", async () => {
+  vi.stubGlobal("WebSocket", TestSocket);
+  Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+    value: vi.fn(),
+    configurable: true,
+  });
+
+  const receipt = {
+    avatarUrl: null,
+    lastReadMessageId: null,
+    lastReadAt: null,
+    lastDeliveredMessageId: null,
+    lastDeliveredAt: null,
+  };
+  const baseConv: ChatConversation = {
+    id: "dm-fresh-list",
+    type: "DIRECT",
+    title: null,
+    createdBy: "actor",
+    lastMessageAt: "2026-11-28T08:00:00.000Z",
+    lastMessagePreview: "Hi",
+    lastMessageSenderId: "peer",
+    lastReadMessageId: null,
+    lastReadAt: null,
+    unreadCount: 0,
+    capabilities: { dmAssistantEnabled: true },
+    members: [
+      { userId: "actor", displayName: "Actor", role: "OWNER", ...receipt },
+      { userId: "peer", displayName: "Lan Tran", role: "MEMBER", ...receipt },
+    ],
+  };
+
+  vi.spyOn(chatApi, "conversations").mockResolvedValue({
+    data: [{ ...baseConv, capabilities: { dmAssistantEnabled: false } }],
+    nextCursor: null,
+    capabilities: { dmAssistantEnabled: false },
+  });
+  // Hold detail refetch pending so stale cached detail (dmAssistantEnabled=true) remains with older dataUpdatedAt
+  vi.spyOn(chatFeatures, "conversation").mockImplementation(
+    () => new Promise<ChatConversation>(() => undefined),
+  );
+  vi.spyOn(chatFeatures, "draft").mockResolvedValue({
+    content: "",
+    mentionUserIds: [],
+    assistantMention: false,
+    updatedAt: null,
+  });
+  vi.spyOn(chatApi, "candidates").mockResolvedValue({ data: [] });
+  vi.spyOn(chatApi, "messages").mockResolvedValue({
+    data: [],
+    nextCursor: null,
+  });
+  vi.spyOn(chatApi, "wsTicket").mockResolvedValue({
+    ticket: "test",
+    expiresInSeconds: 30,
+  });
+
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  client.setQueryData(
+    chatKeys.conversation("organization", "dm-fresh-list"),
+    baseConv,
+    { updatedAt: Date.now() - 60_000 },
+  );
+
+  render(
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="en" messages={translations}>
+        <ChatWorkspace />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+
+  await screen.findByPlaceholderText("Write a message…");
+  expect(
+    screen.queryByTestId("chat-composer-ai-trigger"),
+  ).not.toBeInTheDocument();
   client.clear();
 });

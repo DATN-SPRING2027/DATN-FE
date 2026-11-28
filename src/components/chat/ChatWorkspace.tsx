@@ -48,6 +48,7 @@ import {
   getChatWsCooldownRemainingMs,
   getChatWsPolicyFailureCooldownMs,
   mergeChatMessage,
+  mergeOlderChatMessages,
   recordChatWsConnectionFailure,
   resetChatWsCooldown,
   resolveChatRealtimeWsUrl,
@@ -65,8 +66,8 @@ import {
   getAssistantRetryPayload,
   invalidateConversationMessageQueries,
   isAssistantStatusEvent,
-  isDmAssistantEnabledForConversation,
   resolveChatSendErrorKey,
+  resolveFreshDmAssistantCapability,
   syncTriggerStateFromAssistantMessage,
 } from "./assistant-utils";
 
@@ -275,10 +276,11 @@ export default function ChatWorkspace() {
     () => visibleConversationPages?.pages.flatMap((page) => page.data) ?? [],
     [visibleConversationPages],
   );
+  const detailQueryEnabled = Boolean(activeId && organizationId);
   const detailQuery = useQuery({
     queryKey: chatKeys.conversation(organizationId, activeId),
     queryFn: () => chatFeatures.conversation(activeId),
-    enabled: Boolean(activeId && organizationId),
+    enabled: detailQueryEnabled,
     retry: false,
   });
   const openMessageContext = (
@@ -326,11 +328,17 @@ export default function ChatWorkspace() {
   }, [navigationTarget, activeId, clearNavigation]);
   const detailAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(detailQuery.error);
   const visibleConversationDetail = detailAccessLost ? undefined : detailQuery.data;
+  const activeListConversation = conversations.find(
+    (item) => item.id === activeId,
+  );
+  const activeSearchConversation = activeListConversation
+    ? undefined
+    : visibleConversationSearchPages?.pages
+        .flatMap((page) => page.data)
+        .find((item) => item.id === activeId);
   const activeConversation =
-    conversations.find((item) => item.id === activeId) ??
-    visibleConversationSearchPages?.pages
-      .flatMap((page) => page.data)
-      .find((item) => item.id === activeId) ??
+    activeListConversation ??
+    activeSearchConversation ??
     visibleConversationDetail ??
     (detailAccessLost ? undefined : activeFallback?.conversation);
   const tPage = useTranslations("pageTitles");
@@ -345,15 +353,47 @@ export default function ChatWorkspace() {
   const activeType = activeConversation?.type ?? (detailAccessLost ? undefined : activeFallback?.type);
   const conversationsCapabilities =
     visibleConversationPages?.pages[0]?.capabilities;
+  const searchConversationsCapabilities =
+    visibleConversationSearchPages?.pages[0]?.capabilities;
+  const listCapabilities = activeListConversation
+    ? (activeListConversation.capabilities ?? conversationsCapabilities)
+    : activeSearchConversation
+      ? (activeSearchConversation.capabilities ??
+        searchConversationsCapabilities ??
+        conversationsCapabilities)
+      : conversationsCapabilities;
+  const hasSearchCapabilities = Boolean(
+    activeSearchConversation?.capabilities ?? searchConversationsCapabilities,
+  );
+  const listDataUpdatedAt = activeListConversation
+    ? conversationsQuery.dataUpdatedAt
+    : activeSearchConversation && hasSearchCapabilities
+      ? conversationSearchQuery.dataUpdatedAt
+      : conversationsQuery.dataUpdatedAt;
   const freshDetailCapabilities =
     visibleConversationDetail?.id === activeId
       ? visibleConversationDetail.capabilities
       : undefined;
-  const dmAssistantEnabled = isDmAssistantEnabledForConversation(
-    activeConversation,
-    conversationsCapabilities,
-    freshDetailCapabilities,
-  );
+  const dmAssistantEnabled = resolveFreshDmAssistantCapability({
+    conversation: activeConversation,
+    detail: {
+      capabilities: freshDetailCapabilities,
+      dataUpdatedAt: detailQuery.dataUpdatedAt,
+      enabled: detailQueryEnabled,
+    },
+    list: {
+      capabilities: listCapabilities,
+      dataUpdatedAt: listDataUpdatedAt,
+      enabled: Boolean(
+        organizationId &&
+          (activeListConversation
+            ? !conversationsAccessLost
+            : activeSearchConversation
+              ? !conversationSearchAccessLost
+              : !conversationsAccessLost),
+      ),
+    },
+  });
   const contextQuery = useChatMessageContextQuery(
     organizationId,
     activeId,
@@ -649,19 +689,17 @@ export default function ChatWorkspace() {
               isMessage(packet.data)
             ) {
               const message = packet.data as ChatMessage;
-              const current = queryClient.getQueryData<ChatPage<ChatMessage>>(
-                chatKeys.messages(organizationId, message.conversationId),
-              );
-              const previous = current?.data.find(
-                (item) => item.id === message.id,
-              );
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
-                (page) =>
-                  mergeChatMessage(
+                (page) => {
+                  const previous = page?.data.find(
+                    (item) => item.id === message.id,
+                  );
+                  return mergeChatMessage(
                     page,
                     preserveLocalReactions(message, previous),
-                  ),
+                  );
+                },
               );
               void invalidateConversationMessageQueries(
                 queryClient,
@@ -1272,13 +1310,7 @@ export default function ChatWorkspace() {
         contextMessageId
           ? chatKeys.context(organizationId, conversationId, contextMessageId)
           : chatKeys.messages(organizationId, conversationId),
-        (page) => ({
-          data: [...older.data, ...(page?.data ?? [])].filter(
-            (message, index, all) =>
-              all.findIndex((item) => item.id === message.id) === index,
-          ),
-          nextCursor: older.nextCursor,
-        }),
+        (page) => mergeOlderChatMessages(page, older),
       );
       requestAnimationFrame(() => {
         const current = scrollRef.current;
