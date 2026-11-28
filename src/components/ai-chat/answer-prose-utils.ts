@@ -124,5 +124,7 @@ export function formatCitationSnippetPreview(
   if (withoutEmoji.length <= maxLength) {
     return withoutEmoji;
   }
-  return `${withoutEmoji.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
+  const sliced = withoutEmoji.slice(0, Math.max(1, maxLength - 1)).trimEnd();
+  const cleanedTail = sliced.replace(/[.,;:!?\-–—]+$/u, "").trimEnd();
+  return `${cleanedTail || sliced}…`;
 }

@@ -584,7 +584,7 @@ export default function MiniChatWindow({
       aria-label={displayName}
       data-connection={connection}
       data-testid={`mini-chat-window-${conversationId}`}
-      className="relative flex h-[min(28rem,calc(100dvh-5rem))] w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl sm:w-84 sm:rounded-b-none sm:border-b-0 dark:border-gray-800 dark:bg-gray-900"
+      className="relative flex h-[min(30rem,calc(100dvh-4.5rem))] w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white ring-1 ring-gray-900/5 shadow-theme-xl sm:h-[min(33rem,calc(100dvh-5rem))] sm:w-84 sm:rounded-b-none sm:border-b-0 dark:border-gray-800 dark:bg-gray-900 dark:ring-white/10"
     >
       {/* Compact Messenger-style Header */}
       <header className="flex shrink-0 items-center justify-between gap-1 border-b border-gray-100 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900">
@@ -595,7 +595,7 @@ export default function MiniChatWindow({
             title={t("backToConversations")}
             aria-label={t("backToConversations")}
             data-testid={`mini-chat-back-${conversationId}`}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 dark:text-brand-400 dark:hover:bg-gray-800"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-gray-800"
           >
             <ChevronLeftIcon className="h-5 w-5 rtl:rotate-180" />
           </button>
@@ -609,7 +609,7 @@ export default function MiniChatWindow({
                 openFullChatTarget(conversationId, fullChatContextId);
               }
             }}
-            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1 text-start transition hover:bg-gray-100/80 dark:hover:bg-gray-800/60"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-xl px-1.5 py-1 text-start transition hover:bg-gray-100/80 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:hover:bg-gray-800/60"
           >
             <div className="relative shrink-0">
               <ChatAvatar
@@ -659,7 +659,7 @@ export default function MiniChatWindow({
             onClick={onMinimize}
             title={t("minimizeChat")}
             aria-label={t("minimizeChat")}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 dark:text-brand-400 dark:hover:bg-gray-800"
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-gray-800"
           >
             <MinusIcon className="h-4.5 w-4.5" />
           </button>
@@ -668,7 +668,7 @@ export default function MiniChatWindow({
             onClick={onClose}
             title={t("close")}
             aria-label={t("closeChatWindow", { name: displayName })}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 hover:text-error-600 dark:text-brand-400 dark:hover:bg-gray-800 dark:hover:text-error-400"
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-brand-600 transition hover:bg-gray-100 hover:text-error-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-gray-800 dark:hover:text-error-400"
           >
             <CloseLineIcon className="h-4.5 w-4.5" />
           </button>
@@ -692,7 +692,7 @@ export default function MiniChatWindow({
                 });
               });
             }}
-            className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900"
+            className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 font-semibold hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:hover:bg-brand-900"
           >
             {t("backToLatest")}
           </button>
@@ -812,6 +812,7 @@ export default function MiniChatWindow({
       <ChatDraftComposer
         key={conversationId}
         compact
+        currentUserId={actorId}
         dmAssistantEnabled={dmAssistantEnabled}
         organizationId={organizationId}
         conversationId={conversationId}

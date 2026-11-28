@@ -487,3 +487,143 @@ it("renders distinct inline status cards for PENDING, CANCELLED (SOURCE_CHANGED 
   fireEvent.click(screen.getByRole("button", { name: "Ask again" }));
   await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(2));
 });
+
+it("collapses multi-source citations to 3 in Full Chat and 2 in compact Mini Chat while prioritizing mutated sources", () => {
+  const sources = [
+    {
+      refId: "M1",
+      messageId: "src-1",
+      senderName: "Lan Tran",
+      createdAt: "2026-11-27T08:01:00.000Z",
+      quoteSnippet: "Decision one",
+      status: "ACTIVE" as const,
+    },
+    {
+      refId: "M2",
+      messageId: "src-2",
+      senderName: "Phuc Nguyen",
+      createdAt: "2026-11-27T08:02:00.000Z",
+      quoteSnippet: "Decision two",
+      status: "ACTIVE" as const,
+    },
+    {
+      refId: "M3",
+      messageId: "src-3",
+      senderName: "Lan Tran",
+      createdAt: "2026-11-27T08:03:00.000Z",
+      quoteSnippet: "Decision three",
+      status: "ACTIVE" as const,
+    },
+    {
+      refId: "M4",
+      messageId: "src-4",
+      senderName: "Phuc Nguyen",
+      createdAt: "2026-11-27T08:04:00.000Z",
+      quoteSnippet: "Decision four",
+      status: "ACTIVE" as const,
+    },
+    {
+      refId: "M5",
+      messageId: "src-5",
+      senderName: "Lan Tran",
+      createdAt: "2026-11-27T08:05:00.000Z",
+      quoteSnippet: "Edited decision five",
+      status: "EDITED" as const,
+    },
+    {
+      refId: "M6",
+      messageId: "src-6",
+      senderName: "Phuc Nguyen",
+      createdAt: "2026-11-27T08:06:00.000Z",
+      quoteSnippet: "",
+      status: "DELETED" as const,
+    },
+  ];
+  const manyRefMessage: ChatMessage = {
+    ...message,
+    id: "ai-many-refs",
+    senderId: "assistant:continuum_ai",
+    senderName: "Continuum AI",
+    authorType: "ASSISTANT",
+    triggerMessageId: "trigger-many",
+    assistantStatus: "COMPLETED",
+    assistantMeta: {
+      handle: "continuumAI",
+      queryMode: "TIME_WINDOW",
+      partialCoverage: false,
+      coverageNote: null,
+      sourceState: "HAS_EDITED_AND_DELETED",
+    },
+    content: "Summary of yesterday decisions [M1] [M5] [M6].",
+    sourceReferences: sources,
+  };
+
+  const { rerender } = render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ChatMessageBubble
+        message={manyRefMessage}
+        mine={false}
+        showSender={false}
+        groupStart
+        groupEnd
+        highlighted={false}
+        onOpenContext={vi.fn()}
+        onReply={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onReaction={vi.fn()}
+      />
+    </NextIntlClientProvider>,
+  );
+
+  // Full Chat collapsed: 3 visible chips, prioritizing EDITED M5 and DELETED M6 + M1
+  expect(screen.getByTestId("assistant-source-chip-M1")).toBeInTheDocument();
+  expect(screen.getByTestId("assistant-source-chip-M5")).toBeInTheDocument();
+  expect(screen.getByTestId("assistant-source-chip-M6")).toBeInTheDocument();
+  expect(
+    screen.queryByTestId("assistant-source-chip-M2"),
+  ).not.toBeInTheDocument();
+
+  const toggle = screen.getByTestId("assistant-sources-toggle");
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(toggle).toHaveTextContent("Show all 6 sources");
+
+  // Expanding reveals all 6 sources
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(toggle).toHaveTextContent("Show fewer sources");
+  expect(screen.getByTestId("assistant-source-chip-M2")).toBeInTheDocument();
+  expect(screen.getByTestId("assistant-source-chip-M4")).toBeInTheDocument();
+
+  // Collapsing hides extras again
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(
+    screen.queryByTestId("assistant-source-chip-M4"),
+  ).not.toBeInTheDocument();
+
+  // Compact Mini Chat mode collapses to 2 chips (prioritizing EDITED M5 + DELETED M6)
+  rerender(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ChatMessageBubble
+        message={manyRefMessage}
+        mine={false}
+        compact
+        showSender={false}
+        groupStart
+        groupEnd
+        highlighted={false}
+        onOpenContext={vi.fn()}
+        onReply={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onReaction={vi.fn()}
+      />
+    </NextIntlClientProvider>,
+  );
+  expect(screen.getByTestId("assistant-source-chip-M5")).toBeInTheDocument();
+  expect(screen.getByTestId("assistant-source-chip-M6")).toBeInTheDocument();
+  expect(
+    screen.queryByTestId("assistant-source-chip-M1"),
+  ).not.toBeInTheDocument();
+});

@@ -1733,7 +1733,7 @@ export default function ChatWorkspace() {
                                 </span>
                               </span>
                               {peerEmail && (
-                                <span className="block truncate text-[11px] text-gray-500 dark:text-gray-400">
+                                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
                                   {peerEmail}
                                 </span>
                               )}
@@ -1743,7 +1743,7 @@ export default function ChatWorkspace() {
                                     t("messageEmpty")}
                                 </span>
                                 {conversation.lastMessageAt && (
-                                  <time className="shrink-0 text-[11px] text-gray-400">
+                                  <time className="shrink-0 text-xs text-gray-500 tabular-nums dark:text-gray-400">
                                     {new Date(
                                       conversation.lastMessageAt,
                                     ).toLocaleTimeString([], {
@@ -1758,7 +1758,7 @@ export default function ChatWorkspace() {
                                     aria-label={t("unread", {
                                       count: conversation.unreadCount,
                                     })}
-                                    className="rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                                    className="rounded-full bg-brand-500 px-1.5 py-0.5 text-xs font-bold text-white tabular-nums"
                                   >
                                     {conversation.unreadCount || "•"}
                                   </span>
@@ -1817,7 +1817,7 @@ export default function ChatWorkspace() {
                                   {member.email}
                                 </span>
                               )}
-                              <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                              <span className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                                 <span
                                   className={`h-1.5 w-1.5 rounded-full ${member.isOnline ? "bg-success-500" : "bg-gray-300"}`}
                                 />
@@ -1873,7 +1873,7 @@ export default function ChatWorkspace() {
                   type="button"
                   onClick={() => setMobileListOpen(true)}
                   aria-label={t("title")}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 md:hidden dark:hover:bg-gray-800"
+                  className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 md:hidden dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <span aria-hidden="true">←</span>
                 </button>
@@ -1916,7 +1916,7 @@ export default function ChatWorkspace() {
                     setSearchOpen(false);
                     setRoomManagementOpen(false);
                   }}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <MoreDotIcon width={20} height={20} className="h-5 w-5 shrink-0" />
                 </button>
@@ -1930,7 +1930,7 @@ export default function ChatWorkspace() {
                     setRoomManagementOpen(false);
                     closeCompose();
                   }}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
+                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <SearchIcon width={20} height={20} className="h-5 w-5 shrink-0" />
                 </button>
@@ -1958,7 +1958,7 @@ export default function ChatWorkspace() {
                       if (opening)
                         setRoomTitleDraft(activeConversation?.title ?? "");
                     }}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
+                    className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
                     <InfoIcon width={20} height={20} className="h-5 w-5 shrink-0" />
                   </button>
@@ -2144,6 +2144,7 @@ export default function ChatWorkspace() {
               <ChatDraftComposer
                 conversationId={activeId}
                 organizationId={organizationId}
+                currentUserId={actorId}
                 dmAssistantEnabled={dmAssistantEnabled}
                 members={activeConversation?.members}
                 key={activeId}

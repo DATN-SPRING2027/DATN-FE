@@ -1022,6 +1022,8 @@
     "assistantRetrying": "Đang gửi…",
     "assistantAnsweringMessage": "Trả lời câu hỏi của {name}",
     "assistantSourcesHeading": "Tin nguồn ({count})",
+    "assistantShowAllSources": "Xem tất cả {count} tin nguồn",
+    "assistantShowFewerSources": "Thu gọn tin nguồn",
     "assistantSourceEdited": "Tin nguồn đã sửa",
     "assistantSourceDeleted": "Tin nguồn đã xóa",
     "assistantSourceOpenAria": "Mở tin nguồn {refId} của {sender}",

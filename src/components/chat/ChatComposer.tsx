@@ -24,6 +24,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import ChatAvatar from "./ChatAvatar";
 
 type SelectedFileData = Readonly<{ file: File; previewUrl: string | null }>;
 
@@ -65,12 +66,18 @@ function SelectedFile({
 
 type MentionOption =
   | Readonly<{ kind: "assistant"; id: typeof CONTINUUM_AI_HANDLE }>
-  | Readonly<{ kind: "member"; userId: string; displayName: string }>;
+  | Readonly<{
+      kind: "member";
+      userId: string;
+      displayName: string;
+      avatarUrl?: string | null;
+    }>;
 
 type ChatComposerProps = Readonly<{
   disabled?: boolean;
   compact?: boolean;
   dmAssistantEnabled?: boolean;
+  currentUserId?: string;
   isSending: boolean;
   replyContext?: Readonly<{ id: string; name: string; text: string }> | null;
   onCancelReply?: () => void;
@@ -89,7 +96,11 @@ type ChatComposerProps = Readonly<{
     mentionUserIds: readonly string[],
     assistantMention?: boolean,
   ) => void;
-  members?: readonly { userId: string; displayName: string }[];
+  members?: readonly {
+    userId: string;
+    displayName: string;
+    avatarUrl?: string | null;
+  }[];
   onTyping: (isTyping: boolean) => void;
 }>;
 
@@ -97,6 +108,7 @@ export default function ChatComposer({
   disabled = false,
   compact = false,
   dmAssistantEnabled = false,
+  currentUserId,
   isSending,
   replyContext = null,
   onCancelReply,
@@ -139,8 +151,10 @@ export default function ChatComposer({
     mentionTerm === undefined || isMentionDismissed
       ? []
       : members
-          .filter((member) =>
-            matchesNamePrefixes(member.displayName, mentionTerm),
+          .filter(
+            (member) =>
+              (!currentUserId || member.userId !== currentUserId) &&
+              matchesNamePrefixes(member.displayName, mentionTerm),
           )
           .slice(0, 8);
   const mentionOptions: MentionOption[] = [
@@ -151,6 +165,7 @@ export default function ChatComposer({
       kind: "member" as const,
       userId: member.userId,
       displayName: member.displayName,
+      avatarUrl: member.avatarUrl ?? null,
     })),
   ];
   const isMentionOpen = mentionOptions.length > 0;
@@ -533,11 +548,19 @@ export default function ChatComposer({
           id={listboxId}
           role="listbox"
           aria-label={t("mentionSuggestions")}
-          className="absolute inset-x-2 bottom-full z-30 mb-1.5 max-h-44 overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white p-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+          className={`absolute bottom-full z-30 mb-1.5 overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white p-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900 ${
+            compact
+              ? "inset-x-2 max-h-36"
+              : "inset-x-2 max-h-44 sm:end-auto sm:w-full sm:max-w-md"
+          }`}
         >
           {mentionOptions.map((option, index) => {
             const isActive = index === safeActiveMentionIndex;
             const optionId = `${listboxId}-option-${index}`;
+            const showDividerAbove =
+              option.kind === "member" &&
+              index > 0 &&
+              mentionOptions[index - 1]?.kind === "assistant";
             if (option.kind === "assistant") {
               return (
                 <div
@@ -553,7 +576,7 @@ export default function ChatComposer({
                     onMouseDown={(event) => event.preventDefault()}
                     onMouseEnter={() => setActiveMentionIndex(index)}
                     onClick={() => selectMentionOption(option)}
-                    className={`flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-start transition ${
+                    className={`flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-start transition ${
                       isActive
                         ? "bg-brand-50 text-brand-800 dark:bg-brand-500/20 dark:text-brand-200"
                         : "text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-800"
@@ -566,10 +589,19 @@ export default function ChatComposer({
                       <ShootingStarIcon className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-semibold text-brand-700 dark:text-brand-300">
+                      <span
+                        translate="no"
+                        className="block truncate text-xs font-semibold text-brand-700 dark:text-brand-300"
+                      >
                         @{CONTINUUM_AI_HANDLE}
                       </span>
-                      <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                      <span
+                        className={`block truncate text-xs ${
+                          isActive
+                            ? "text-brand-800 dark:text-brand-200"
+                            : "text-gray-600 dark:text-gray-300"
+                        }`}
+                      >
                         {t("assistantMentionDescription")}
                       </span>
                     </span>
@@ -583,6 +615,11 @@ export default function ChatComposer({
                 id={optionId}
                 role="option"
                 aria-selected={isActive}
+                className={
+                  showDividerAbove
+                    ? "mt-1 border-t border-gray-100 pt-1 dark:border-gray-800"
+                    : undefined
+                }
               >
                 <button
                   type="button"
@@ -590,13 +627,22 @@ export default function ChatComposer({
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => setActiveMentionIndex(index)}
                   onClick={() => selectMentionOption(option)}
-                  className={`block w-full truncate rounded-lg px-3 py-1.5 text-start text-xs transition ${
+                  className={`flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-start text-xs transition ${
                     isActive
                       ? "bg-brand-50 font-medium text-brand-800 dark:bg-brand-500/20 dark:text-brand-200"
                       : "text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-800"
                   }`}
                 >
-                  {option.displayName}
+                  <span aria-hidden="true" className="shrink-0">
+                    <ChatAvatar
+                      name={option.displayName}
+                      src={option.avatarUrl}
+                      className="h-6 w-6 text-xs"
+                    />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {option.displayName}
+                  </span>
                 </button>
               </div>
             );
@@ -614,11 +660,11 @@ export default function ChatComposer({
                 aria-hidden="true"
                 className="h-3.5 w-3.5 shrink-0"
               />
-              <span className="shrink-0 font-semibold">
+              <span translate="no" className="shrink-0 font-semibold">
                 @{CONTINUUM_AI_HANDLE}
               </span>
               {!compact && (
-                <span className="hidden truncate text-xs text-brand-600/90 sm:inline dark:text-brand-300/80">
+                <span className="hidden truncate text-xs text-brand-700 sm:inline dark:text-brand-200">
                   · {t("assistantScopeHint")}
                 </span>
               )}
@@ -626,7 +672,7 @@ export default function ChatComposer({
                 type="button"
                 aria-label={t("removeAssistantMention")}
                 onClick={removeAssistantTrigger}
-                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-brand-600 transition hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-300 dark:hover:bg-brand-500/25"
+                className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-brand-700 transition hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-200 dark:hover:bg-brand-500/25"
               >
                 <CloseLineIcon className="h-3 w-3" />
               </button>
@@ -638,13 +684,15 @@ export default function ChatComposer({
               data-testid="chat-composer-ai-trigger"
               aria-label={t("askContinuumAiAction")}
               onClick={activateAssistantTrigger}
-              className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border border-gray-200/90 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-brand-300 hover:bg-brand-50/70 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/15 dark:hover:text-brand-300"
+              className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-gray-200/90 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/70 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/15 dark:hover:text-brand-300"
             >
               <ShootingStarIcon
                 aria-hidden="true"
-                className="h-3 w-3 shrink-0 text-brand-500 dark:text-brand-400"
+                className="h-3 w-3 shrink-0 text-brand-600 dark:text-brand-400"
               />
-              <span className="truncate">@{CONTINUUM_AI_HANDLE}</span>
+              <span translate="no" className="truncate">
+                @{CONTINUUM_AI_HANDLE}
+              </span>
             </button>
           )}
         </div>

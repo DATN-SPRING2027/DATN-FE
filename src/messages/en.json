@@ -1022,6 +1022,8 @@
     "assistantRetrying": "Sending…",
     "assistantAnsweringMessage": "Answering {name}",
     "assistantSourcesHeading": "Sources ({count})",
+    "assistantShowAllSources": "Show all {count} sources",
+    "assistantShowFewerSources": "Show fewer sources",
     "assistantSourceEdited": "Source edited",
     "assistantSourceDeleted": "Source deleted",
     "assistantSourceOpenAria": "Open source {refId} from {sender}",

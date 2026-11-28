@@ -166,7 +166,9 @@ export default function ChatMessageBubble({
         )}
         {isAssistant ? (
           <div
-            className={`relative w-full min-w-0 rounded-2xl rounded-es-md border px-3.5 py-3 shadow-theme-xs ${
+            className={`relative w-full min-w-0 rounded-2xl rounded-es-md border shadow-theme-xs ${
+              compact ? "px-2.5 py-2" : "px-3.5 py-3"
+            } ${
               isInsufficient
                 ? "border-gray-200/90 bg-gray-50/95 text-gray-900 dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-100"
                 : "border-brand-200/80 bg-brand-25/90 text-gray-900 dark:border-brand-500/25 dark:bg-brand-950/35 dark:text-gray-100"
@@ -188,7 +190,7 @@ export default function ChatMessageBubble({
                       setConfirmDelete(false);
                       setPickingReaction(false);
                     }}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-500 transition hover:bg-brand-100/70 hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-brand-500/20 dark:hover:text-gray-100"
+                    className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-gray-600 transition hover:bg-brand-100/70 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-brand-500/20 dark:hover:text-gray-100"
                   >
                     <MoreDotIcon className="h-4 w-4" />
                   </button>
@@ -268,6 +270,7 @@ export default function ChatMessageBubble({
                     content={
                       message.deletedAt ? t("messageDeleted") : message.content
                     }
+                    mine={effectiveMine}
                   />
                 )}
                 {!message.deletedAt && (

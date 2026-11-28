@@ -260,7 +260,7 @@ export default function FloatingChatDock() {
       {visibleOpenWindowIds.length > 0 && (
         <div
           data-testid="floating-chat-windows-dock"
-          className={`fixed inset-x-3 bottom-3 z-40 flex-row-reverse items-end gap-3 transition-transform duration-200 ease-out ${windowsDockPositionClass} ${helpShiftClass}`}
+          className={`fixed inset-x-3 bottom-2 z-40 flex-row-reverse items-end gap-3 transition-transform duration-200 ease-out sm:bottom-0 ${windowsDockPositionClass} ${helpShiftClass}`}
         >
           {visibleOpenWindowIds.map((conversationId) => (
             <div key={conversationId} className="w-full sm:w-auto">

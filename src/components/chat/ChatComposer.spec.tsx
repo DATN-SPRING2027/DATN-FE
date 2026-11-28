@@ -299,3 +299,32 @@ it("never exposes @continuumAI when capability is disabled and does not trigger 
     ),
   );
 });
+
+it("filters the current user out of mention suggestions while keeping @continuumAI and peer members", () => {
+  render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ChatComposer
+        dmAssistantEnabled
+        currentUserId="self-id"
+        isSending={false}
+        onSend={vi.fn().mockResolvedValue(true)}
+        onTyping={vi.fn()}
+        members={[
+          { userId: "self-id", displayName: "Pham Anh Self" },
+          { userId: "peer-id", displayName: "Vo Khoa Peer" },
+        ]}
+      />
+    </NextIntlClientProvider>,
+  );
+
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "@" } });
+
+  expect(screen.getByTestId("mention-option-continuum-ai")).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Vo Khoa Peer" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Pham Anh Self" }),
+  ).not.toBeInTheDocument();
+});

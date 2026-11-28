@@ -23,6 +23,7 @@ import {
   resolveChatSendErrorKey,
   syncTriggerStateFromAssistantMessage,
 } from "@/components/chat/assistant-utils";
+import { formatCitationSnippetPreview } from "@/components/ai-chat/answer-prose-utils";
 
 const message = (id: string, content = id) =>
   ({
@@ -213,5 +214,12 @@ describe("chat history recovery", () => {
         new ApiError(409, "CHAT_DIRECT_UNAVAILABLE", "Blocked"),
       ),
     ).toBe("assistantErrorBlocked");
+
+    expect(
+      formatCitationSnippetPreview(
+        "Đã qua toàn bộ bài test tích hợp trên staging., kiểm tra thêm phần khác",
+        49,
+      ),
+    ).toBe("Đã qua toàn bộ bài test tích hợp trên staging…");
   });
 });

@@ -71,7 +71,7 @@ export default function FloatingChatHeadsRail({
             >
               {/* Hover label tooltip (above head when MiniChatWindow sits adjacent, else inline-start) */}
               <span
-                className={`pointer-events-none invisible absolute z-10 max-w-44 truncate rounded-lg border border-gray-200 bg-white/95 px-2.5 py-1 text-xs font-medium text-gray-800 opacity-0 shadow-theme-md backdrop-blur transition-all group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-100 ${tooltipPositionClass}`}
+                className={`pointer-events-none invisible absolute z-10 max-w-44 truncate rounded-lg border border-gray-200 bg-white/95 px-2.5 py-1 text-xs font-medium text-gray-800 opacity-0 shadow-theme-md backdrop-blur transition-[opacity,visibility] group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-100 ${tooltipPositionClass}`}
               >
                 {name}
               </span>

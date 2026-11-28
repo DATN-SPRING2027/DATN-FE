@@ -71,6 +71,11 @@ function renderInlineWithRefs(
             data-testid={`assistant-inline-ref-${source.refId}`}
             disabled={isDeleted || !onJumpToSource}
             aria-disabled={isDeleted || !onJumpToSource ? "true" : undefined}
+            aria-label={
+              isDeleted
+                ? labels.deletedAria(source.refId, source.senderName)
+                : labels.openAria(source.refId, source.senderName)
+            }
             title={
               isDeleted
                 ? labels.deletedAria(source.refId, source.senderName)
@@ -84,10 +89,10 @@ function renderInlineWithRefs(
             className={cn(
               "font-mono mx-0.5 inline-flex items-center rounded px-1.5 py-0.5 align-baseline text-xs font-semibold tabular-nums transition focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500",
               isDeleted
-                ? "cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-500 line-through dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+                ? "cursor-not-allowed border border-gray-300 bg-gray-100 text-gray-700 line-through dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                 : isEdited
-                  ? "border border-warning-300/90 bg-warning-50 text-warning-800 hover:bg-warning-100 dark:border-warning-500/35 dark:bg-warning-500/15 dark:text-warning-300 dark:hover:bg-warning-500/25"
-                  : "border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25",
+                  ? "cursor-pointer border border-warning-300/90 bg-warning-50 text-warning-800 hover:bg-warning-100 dark:border-warning-500/35 dark:bg-warning-500/15 dark:text-warning-300 dark:hover:bg-warning-500/25"
+                  : "cursor-pointer border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25",
             )}
           >
             [{source.refId}]
