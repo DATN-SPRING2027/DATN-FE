@@ -285,7 +285,11 @@ const { operationHooks, operationState } = vi.hoisted(() => {
       usePlatformJobCommandMutation: vi.fn(() => mutation),
       usePlatformAiOperationsQuery: vi.fn(() => query),
       usePlatformAiFeedbackQuery: vi.fn(() => ({
-        data: { totals: { likes: 0, dislikes: 0 }, items: [], nextCursor: null },
+        data: {
+          totals: { likes: 0, dislikes: 0 },
+          items: [],
+          nextCursor: null,
+        },
         isError: false,
         isPending: false,
         isFetching: false,
@@ -375,6 +379,10 @@ vi.mock(
 );
 vi.mock("next-intl", () => ({
   useLocale: () => "en",
+  useFormatter: () => ({
+    dateTime: (value: Date, options: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat("en", options).format(value),
+  }),
   useTranslations:
     (namespace: string) => (key: string, values?: Record<string, string>) => {
       if (namespace === "platformUserDirectory") {
@@ -391,6 +399,12 @@ vi.mock("next-intl", () => ({
         return "Close";
       if (namespace === "platformUserActions" && key === "restore")
         return "Restore account";
+      if (
+        namespace === "platformConsole.operations.traceDesk" &&
+        key === "accessBody"
+      ) {
+        return "Your Platform session does not grant platform.diagnostics.trace.read.";
+      }
       return values ? `${key} ${Object.values(values).join(" ")}` : key;
     },
 }));
@@ -1590,7 +1604,9 @@ describe("PlatformConsole", () => {
     const orgListbox = screen.getByRole("listbox", {
       name: "workspaceSwitcher.organizationListLabel",
     });
-    fireEvent.click(within(orgListbox).getByRole("option", { name: /North Star/ }));
+    fireEvent.click(
+      within(orgListbox).getByRole("option", { name: /North Star/ }),
+    );
 
     expect(window.location.search).toContain(
       "organizationId=651a2b3c4d5e6f7a8b9c0d21",

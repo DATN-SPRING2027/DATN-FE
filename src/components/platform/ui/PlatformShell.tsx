@@ -14,6 +14,7 @@ export default function PlatformShell({
   operatorEmail,
   isSigningOut,
   onSignOut,
+  contentStyle = "platform",
   children,
 }: {
   activeSection: string;
@@ -22,6 +23,7 @@ export default function PlatformShell({
   operatorEmail?: string;
   isSigningOut?: boolean;
   onSignOut: () => void;
+  contentStyle?: "platform" | "custom";
   children: ReactNode;
 }) {
   const t = useTranslations("platformConsole");
@@ -36,6 +38,8 @@ export default function PlatformShell({
     "audit",
     "account",
   ].includes(activeSection);
+  const useOperationsContentStyle =
+    isOperationsPage && contentStyle === "platform";
   return (
     <div
       className={`${jira.console} ${activeSection === "dashboard" ? "" : jira.compact}`}
@@ -53,19 +57,25 @@ export default function PlatformShell({
         isSigningOut={isSigningOut}
         onSignOut={onSignOut}
       />
-      <div className={jira.body}>
+      <div
+        className={`${jira.body} ${contentStyle === "custom" ? jira.traceBody : ""}`}
+      >
         <PlatformSidebar
           activeSection={activeSection}
           permissions={permissions}
         />
         <main
           id="operator-content"
-          className={`${jira.main} ${isOperationsPage ? `${operations.workspace} ${jira.directory}` : ""}`}
+          className={`${jira.main} ${isOperationsPage ? jira.directory : ""} ${useOperationsContentStyle ? operations.workspace : ""}`}
           tabIndex={-1}
         >
           {isOperationsPage && (
             <div
-              className={activeSection === "account" ? "sr-only" : jira.tabs}
+              className={
+                activeSection === "account" || contentStyle === "custom"
+                  ? "sr-only"
+                  : jira.tabs
+              }
             >
               <h1 className={operations.activeTab}>
                 {t(`operations.tabs.${activeSection}`)}

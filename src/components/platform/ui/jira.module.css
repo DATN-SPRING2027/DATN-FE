@@ -790,6 +790,14 @@
   grid-template-columns: 234px minmax(0, 1fr);
   min-height: calc(100dvh - 48px);
 }
+.body.traceBody .sidebar {
+  position: sticky;
+  inset-block-start: 56px;
+  align-self: start;
+  block-size: calc(100dvh - 56px);
+  overflow-y: auto;
+  scrollbar-color: var(--op-line) transparent;
+}
 .compact .main {
   padding-top: 10px;
 }
@@ -838,6 +846,13 @@
   }
   .compact .body {
     display: block;
+  }
+
+  .body.traceBody .sidebar {
+    position: relative;
+    inset-block-start: auto;
+    block-size: auto;
+    overflow: visible;
   }
 
   .compact .sidebar a {
