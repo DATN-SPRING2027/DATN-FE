@@ -1,4 +1,7 @@
-import type { ChatMessage } from "@/lib/queries/chat/useChat";
+import {
+  isAssistantMessage,
+  type ChatMessage,
+} from "@/lib/queries/chat/useChat";
 
 export function sameMessageGroup(
   previous: ChatMessage | undefined,
@@ -9,6 +12,8 @@ export function sameMessageGroup(
     !next ||
     previous.deletedAt ||
     next.deletedAt ||
+    isAssistantMessage(previous) ||
+    isAssistantMessage(next) ||
     previous.senderId !== next.senderId
   )
     return false;

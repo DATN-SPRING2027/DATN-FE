@@ -5,8 +5,10 @@ import messages from "@/messages/en.json";
 import ChatComposer from "./ChatComposer";
 
 vi.mock("@/icons", () => ({
+  CloseLineIcon: () => null,
   PaperPlaneIcon: () => null,
   PlusIcon: () => null,
+  ShootingStarIcon: () => null,
 }));
 
 afterEach(() => {
@@ -169,6 +171,130 @@ it("attaches a non-image document without converting it to image/png or generati
           type: "application/octet-stream",
         }),
       ],
+      [],
+    ),
+  );
+});
+
+it("supports @continuumAI keyboard selection, Vietnamese IME composition guard, validation, and retry idempotency in enabled DIRECT chats", async () => {
+  const onSend = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ChatComposer
+        dmAssistantEnabled
+        isSending={false}
+        onSend={onSend}
+        onTyping={vi.fn()}
+        members={[{ userId: "member-id", displayName: "Lan Tran" }]}
+      />
+    </NextIntlClientProvider>,
+  );
+
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "@" } });
+
+  const listbox = screen.getByRole("listbox", { name: "Mention suggestions" });
+  expect(listbox).toBeInTheDocument();
+  const options = screen.getAllByRole("option");
+  expect(options[0]).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByTestId("mention-option-continuum-ai")).toBeInTheDocument();
+
+  // Vietnamese IME composition must NOT select the mention or submit on Enter!
+  fireEvent.compositionStart(input);
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(input).toHaveValue("@");
+  expect(onSend).not.toHaveBeenCalled();
+  fireEvent.compositionEnd(input);
+
+  // Keyboard navigation down -> up -> Enter selects @continuumAI
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+  fireEvent.keyDown(input, { key: "ArrowUp" });
+  expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+  fireEvent.keyDown(input, { key: "Enter" });
+
+  expect(input).toHaveValue("@continuumAI ");
+  expect(screen.getByTestId("chat-composer-ai-active-pill")).toBeInTheDocument();
+
+  // Submitting empty query after @continuumAI shows validation error and blocks send
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  expect(
+    await screen.findByText("Enter a question after @continuumAI before sending."),
+  ).toBeInTheDocument();
+  expect(onSend).not.toHaveBeenCalled();
+
+  // Enter a Vietnamese diacritics question and test retry clientMessageId stability
+  fireEvent.change(input, {
+    target: { value: "@continuumAI Hôm qua hai người chốt gì?" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+  const firstClientMessageId = onSend.mock.calls[0]?.[1];
+  expect(onSend).toHaveBeenLastCalledWith(
+    "@continuumAI Hôm qua hai người chốt gì?",
+    firstClientMessageId,
+    [],
+    [],
+    {
+      handle: "continuumAI",
+      query: "Hôm qua hai người chốt gì?",
+      timezone: expect.any(String),
+    },
+  );
+
+  // Retry after first failed send preserves exact clientMessageId
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+  expect(onSend.mock.calls[1]?.[1]).toBe(firstClientMessageId);
+  await waitFor(() => expect(input).toHaveValue(""));
+});
+
+it("never exposes @continuumAI when capability is disabled and does not trigger assistant on manually typed handle", async () => {
+  const onSend = vi.fn().mockResolvedValue(true);
+  const { rerender } = render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ChatComposer
+        dmAssistantEnabled={false}
+        isSending={false}
+        onSend={onSend}
+        onTyping={vi.fn()}
+        members={[{ userId: "member-id", displayName: "Lan Tran" }]}
+      />
+    </NextIntlClientProvider>,
+  );
+
+  expect(
+    screen.queryByTestId("chat-composer-ai-trigger"),
+  ).not.toBeInTheDocument();
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "@" } });
+  expect(
+    screen.queryByTestId("mention-option-continuum-ai"),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Lan Tran" })).toBeInTheDocument();
+
+  // Even when enabled, manually typing @continuumAI without selecting does not attach structured assistantMention
+  rerender(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ChatComposer
+        dmAssistantEnabled
+        isSending={false}
+        onSend={onSend}
+        onTyping={vi.fn()}
+        members={[{ userId: "member-id", displayName: "Lan Tran" }]}
+      />
+    </NextIntlClientProvider>,
+  );
+
+  fireEvent.change(input, {
+    target: { value: "@continuumAI manual text without selecting" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  await waitFor(() =>
+    expect(onSend).toHaveBeenCalledWith(
+      "@continuumAI manual text without selecting",
+      expect.any(String),
+      [],
       [],
     ),
   );

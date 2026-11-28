@@ -181,6 +181,10 @@ export default function FloatingChatDock() {
     currentUserAccessLost ||
     isAccessOrResourceUnavailableError(conversationsQuery.error);
 
+  const conversationsCapabilities = conversationsAccessLost
+    ? undefined
+    : conversationsQuery.data?.pages[0]?.capabilities;
+
   const conversations = useMemo(
     () =>
       conversationsAccessLost
@@ -265,6 +269,7 @@ export default function FloatingChatDock() {
                 actorId={actorId}
                 conversationId={conversationId}
                 conversation={conversationMap.get(conversationId)}
+                capabilities={conversationsCapabilities}
                 highlightedMessageId={highlightedMap[conversationId]}
                 contextMessageId={contextMap[conversationId]}
                 typingUsers={typingByConversation[conversationId]}

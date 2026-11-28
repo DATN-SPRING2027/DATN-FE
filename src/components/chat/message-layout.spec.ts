@@ -19,3 +19,23 @@ it("groups only consecutive messages from one sender within two minutes", () => 
   );
   expect(sameMessageGroup(undefined, first)).toBe(false);
 });
+
+it("never groups Continuum AI assistant messages with human or sibling assistant messages", () => {
+  const human = {
+    senderId: "a",
+    authorType: "USER",
+    createdAt: "2026-10-21T10:00:00Z",
+    deletedAt: null,
+  } as ChatMessage;
+  const assistant = {
+    senderId: "assistant:continuum_ai",
+    authorType: "ASSISTANT",
+    createdAt: "2026-10-21T10:00:05Z",
+    deletedAt: null,
+  } as ChatMessage;
+  expect(sameMessageGroup(human, assistant)).toBe(false);
+  expect(sameMessageGroup(assistant, human)).toBe(false);
+  expect(sameMessageGroup(assistant, { ...assistant, createdAt: "2026-10-21T10:00:10Z" })).toBe(
+    false,
+  );
+});

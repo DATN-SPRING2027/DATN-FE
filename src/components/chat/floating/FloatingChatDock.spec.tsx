@@ -1167,4 +1167,340 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
       await screen.findByTestId(`floating-chat-head-${conv2}`),
     ).toBeInTheDocument();
   });
+
+  it("supports @continuumAI mention, WS assistant.status, source mutation invalidation, off-page jump, and reconnect reconciliation in MiniChatWindow", async () => {
+    const sampleConv = {
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-28T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      capabilities: { dmAssistantEnabled: true },
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    };
+
+    const triggerId = "507f1f77bcf86cd799439061";
+    const aiReplyId = "507f1f77bcf86cd799439062";
+    const oldSourceId = "507f1f77bcf86cd799439063";
+    let sentBody: Record<string, unknown> | null = null;
+    let messagesFetchCount = 0;
+
+    let serverMessages: Record<string, unknown>[] = [
+      {
+        id: triggerId,
+        conversationId: convId,
+        senderId: actorId,
+        senderName: "Phuc Nguyen",
+        senderAvatarUrl: null,
+        content: "@continuumAI Tóm tắt quyết định hôm qua",
+        createdAt: "2026-11-28T09:00:00.000Z",
+        assistantState: {
+          jobId: "job-mini-1",
+          status: "PENDING",
+          failureCode: null,
+          responseMessageId: null,
+          updatedAt: "2026-11-28T09:00:00.000Z",
+        },
+        editedAt: null,
+        deletedAt: null,
+        replyToMessageId: null,
+        replyTo: null,
+        attachments: [],
+        reactions: [],
+      },
+    ];
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-mini-ai", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        return {
+          data: [sampleConv],
+          nextCursor: null,
+          capabilities: { dmAssistantEnabled: true },
+        };
+      }
+      if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+        messagesFetchCount += 1;
+        return { data: serverMessages, nextCursor: null };
+      }
+      if (
+        path ===
+        `/chat/conversations/${convId}/messages?limit=50&aroundMessageId=${oldSourceId}`
+      ) {
+        return {
+          data: [
+            {
+              id: oldSourceId,
+              conversationId: convId,
+              senderId: "507f1f77bcf86cd799439099",
+              senderName: "Lan Tran",
+              senderAvatarUrl: null,
+              content: "Chốt dời release sang thứ Hai và cập nhật changelog.",
+              createdAt: "2026-11-20T09:00:00.000Z",
+              editedAt: null,
+              deletedAt: null,
+              replyToMessageId: null,
+              replyTo: null,
+              attachments: [],
+              reactions: [],
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      if (path === `/chat/conversations/${convId}/draft`) {
+        if (init?.method === "PUT") return { ok: true };
+        return { content: "", mentionUserIds: [], assistantMention: false };
+      }
+      if (
+        path === `/chat/conversations/${convId}/delivered` ||
+        path === `/chat/conversations/${convId}/read`
+      ) {
+        return { ok: true };
+      }
+      if (
+        path === `/chat/conversations/${convId}/messages` &&
+        init?.method === "POST"
+      ) {
+        sentBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return {
+          id: "507f1f77bcf86cd799439069",
+          conversationId: convId,
+          senderId: actorId,
+          senderName: "Phuc Nguyen",
+          senderAvatarUrl: null,
+          content: sentBody.content,
+          createdAt: "2026-11-28T09:05:00.000Z",
+          editedAt: null,
+          deletedAt: null,
+          replyToMessageId: null,
+          replyTo: null,
+          attachments: [],
+          reactions: [],
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    renderWithProviders(<FloatingChatDock />);
+
+    const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+    expect(
+      await within(miniWindow).findByTestId("assistant-trigger-status-pending"),
+    ).toBeInTheDocument();
+
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    const socket = FakeWebSocket.instances[0]!;
+
+    // 1. WS assistant.status updates trigger to PROCESSING then COMPLETED (fetching AI answer)
+    serverMessages = [
+      {
+        ...serverMessages[0]!,
+        assistantState: {
+          jobId: "job-mini-1",
+          status: "COMPLETED",
+          failureCode: null,
+          responseMessageId: aiReplyId,
+          updatedAt: "2026-11-28T09:00:05.000Z",
+        },
+      },
+      {
+        id: aiReplyId,
+        conversationId: convId,
+        senderId: "assistant:continuum_ai",
+        senderName: "Continuum AI",
+        senderAvatarUrl: null,
+        authorType: "ASSISTANT",
+        triggerMessageId: triggerId,
+        assistantStatus: "COMPLETED",
+        assistantFailureCode: null,
+        assistantMeta: {
+          handle: "continuumAI",
+          queryMode: "TIME_WINDOW",
+          partialCoverage: false,
+          coverageNote: null,
+          sourceState: "FRESH",
+        },
+        sourceReferences: [
+          {
+            refId: "M1",
+            messageId: oldSourceId,
+            senderName: "Lan Tran",
+            createdAt: "2026-11-20T09:00:00.000Z",
+            quoteSnippet: "Chốt dời release sang thứ Hai.",
+            status: "ACTIVE",
+          },
+        ],
+        content: "Hai người đã chốt dời release sang thứ Hai [M1].",
+        createdAt: "2026-11-28T09:00:05.000Z",
+        editedAt: null,
+        deletedAt: null,
+        replyToMessageId: triggerId,
+        replyTo: null,
+        attachments: [],
+        reactions: [],
+      },
+    ];
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "assistant.status",
+          data: {
+            conversationId: convId,
+            triggerMessageId: triggerId,
+            jobId: "job-mini-1",
+            status: "COMPLETED",
+            failureCode: null,
+            responseMessageId: aiReplyId,
+            updatedAt: "2026-11-28T09:00:05.000Z",
+          },
+        }),
+      });
+    });
+
+    expect(
+      await within(miniWindow).findByTestId("assistant-message-card"),
+    ).toBeInTheDocument();
+
+    // 2. Clicking off-page source chip opens aroundMessageId context inside MiniChatWindow
+    fireEvent.click(
+      within(miniWindow).getByTestId("assistant-source-chip-M1"),
+    );
+    expect(
+      await within(miniWindow).findByTestId(
+        `mini-chat-context-banner-${convId}`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await within(miniWindow).findByText(
+        "Chốt dời release sang thứ Hai và cập nhật changelog.",
+      ),
+    ).toBeInTheDocument();
+
+    // Exit context & simulate WS message.deleted -> source badge updates to "Source deleted" and chip disables!
+    fireEvent.click(
+      within(miniWindow).getByRole("button", {
+        name: "Back to latest messages",
+      }),
+    );
+    serverMessages = [
+      serverMessages[0]!,
+      {
+        ...serverMessages[1]!,
+        assistantMeta: {
+          handle: "continuumAI",
+          queryMode: "TIME_WINDOW",
+          partialCoverage: false,
+          coverageNote: null,
+          sourceState: "HAS_DELETED",
+        },
+        sourceReferences: [
+          {
+            refId: "M1",
+            messageId: oldSourceId,
+            senderName: "Lan Tran",
+            createdAt: "2026-11-20T09:00:00.000Z",
+            quoteSnippet: "",
+            status: "DELETED",
+          },
+        ],
+      },
+    ];
+
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "message.deleted",
+          data: {
+            id: oldSourceId,
+            conversationId: convId,
+            senderId: "507f1f77bcf86cd799439099",
+            senderName: "Lan Tran",
+            senderAvatarUrl: null,
+            content: "",
+            createdAt: "2026-11-20T09:00:00.000Z",
+            editedAt: null,
+            deletedAt: "2026-11-28T09:01:00.000Z",
+            replyToMessageId: null,
+            replyTo: null,
+            attachments: [],
+            reactions: [],
+          },
+        }),
+      });
+    });
+
+    expect(
+      await within(miniWindow).findByTestId("assistant-source-deleted-badge"),
+    ).toBeInTheDocument();
+    expect(
+      within(miniWindow).getByTestId("assistant-source-chip-M1"),
+    ).toBeDisabled();
+
+    // 3. Reconnecting WS invalidates open mini chat messages for reconciliation
+    const fetchesBeforeReconnect = messagesFetchCount;
+    await act(async () => {
+      socket.onmessage?.({ data: JSON.stringify({ event: "connected" }) });
+    });
+    await waitFor(() =>
+      expect(messagesFetchCount).toBeGreaterThan(fetchesBeforeReconnect),
+    );
+
+    // 4. Selecting @continuumAI in MiniChatWindow composer sends structured assistantMention
+    const input = await within(miniWindow).findByPlaceholderText(
+      "Write a message…",
+    );
+    fireEvent.change(input, { target: { value: "@cont" } });
+    fireEvent.click(
+      within(miniWindow).getByTestId("mention-option-continuum-ai"),
+    );
+    fireEvent.change(input, {
+      target: { value: "@continuumAI Ai phụ trách PAY-123?" },
+    });
+    fireEvent.click(
+      within(miniWindow).getByRole("button", { name: "Send message" }),
+    );
+    await waitFor(() =>
+      expect(sentBody).toMatchObject({
+        content: "@continuumAI Ai phụ trách PAY-123?",
+        assistantMention: {
+          handle: "continuumAI",
+          query: "Ai phụ trách PAY-123?",
+          timezone: expect.any(String),
+        },
+      }),
+    );
+  });
 });

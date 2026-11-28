@@ -17,12 +17,19 @@ import {
   chatKeys,
   useChatMessageContextQuery,
   useChatMessagesQuery,
+  type ChatAssistantMentionInput,
   type ChatAttachment,
+  type ChatCapabilities,
   type ChatConversation,
   type ChatMessage,
   type ChatPage,
 } from "@/lib/queries/chat/useChat";
 import { useChatNavigation } from "@/stores/chat-navigation";
+import {
+  getAssistantRetryPayload,
+  isDmAssistantEnabledForConversation,
+  resolveChatSendErrorKey,
+} from "../assistant-utils";
 import ChatAvatar from "../ChatAvatar";
 import ChatDraftComposer from "../ChatDraftComposer";
 import ChatMessageBubble from "../ChatMessageBubble";
@@ -46,6 +53,7 @@ export type MiniChatWindowProps = Readonly<{
   actorId: string;
   conversationId: string;
   conversation?: ChatConversation;
+  capabilities?: ChatCapabilities;
   highlightedMessageId?: string;
   contextMessageId?: string;
   typingUsers?: Readonly<Record<string, string>>;
@@ -65,6 +73,7 @@ export default function MiniChatWindow({
   actorId,
   conversationId,
   conversation,
+  capabilities,
   highlightedMessageId = "",
   contextMessageId = "",
   typingUsers = EMPTY_TYPING_USERS,
@@ -84,7 +93,7 @@ export default function MiniChatWindow({
 
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [sendError, setSendError] = useState(false);
+  const [sendErrorKey, setSendErrorKey] = useState<string | null>(null);
   const [messageActionError, setMessageActionError] = useState(false);
   const [isLoadingEarlier, setIsLoadingEarlier] = useState(false);
   const [olderMessagesError, setOlderMessagesError] = useState(false);
@@ -160,6 +169,10 @@ export default function MiniChatWindow({
     getConversationDisplayName(activeConversation, actorId) || t("title");
   const isOnline = Boolean(peer?.isOnline);
   const activeType = activeConversation?.type;
+  const dmAssistantEnabled = isDmAssistantEnabledForConversation(
+    activeConversation,
+    capabilities,
+  );
 
   const typingNames = Object.values(typingUsers);
   const typingStatus =
@@ -394,11 +407,12 @@ export default function MiniChatWindow({
     clientMessageId: string,
     files: readonly File[] = [],
     mentionUserIds: readonly string[] = [],
+    assistantMention?: ChatAssistantMentionInput,
   ): Promise<boolean> => {
     if (!conversationId) return false;
     const replyToMessageId = replyingTo?.id;
     setIsSending(true);
-    setSendError(false);
+    setSendErrorKey(null);
     try {
       const fingerprint = files
         .map(
@@ -423,6 +437,7 @@ export default function MiniChatWindow({
         ...(pending.ids.length > 0 ? { attachments: pending.ids } : {}),
         ...(replyToMessageId ? { replyToMessageId } : {}),
         mentionUserIds,
+        ...(assistantMention ? { assistantMention } : {}),
       });
       pendingUploads.current.delete(clientMessageId);
       queryClient.setQueryData<ChatPage<ChatMessage>>(
@@ -443,11 +458,25 @@ export default function MiniChatWindow({
       return true;
     } catch (error) {
       console.error("Failed to send chat message:", error);
-      setSendError(true);
+      setSendErrorKey(resolveChatSendErrorKey(error));
       return false;
     } finally {
       setIsSending(false);
     }
+  };
+
+  const retryAssistantMessage = async (
+    triggerMessage: ChatMessage,
+  ): Promise<boolean> => {
+    const payload = getAssistantRetryPayload(triggerMessage);
+    if (!payload) return false;
+    return sendMessage(
+      payload.content,
+      crypto.randomUUID(),
+      [],
+      [],
+      payload.assistantMention,
+    );
   };
 
   const saveMessageEdit = async (
@@ -671,13 +700,13 @@ export default function MiniChatWindow({
       )}
 
       {/* Error Banners */}
-      {(sendError || messageActionError || olderMessagesError) && (
+      {(sendErrorKey || messageActionError || olderMessagesError) && (
         <div
           role="alert"
           className="shrink-0 border-b border-error-100 bg-error-50 px-3 py-1.5 text-xs text-error-700 dark:border-error-500/20 dark:bg-error-500/10 dark:text-error-300"
         >
-          {sendError
-            ? t("sendError")
+          {sendErrorKey
+            ? t(sendErrorKey)
             : olderMessagesError
               ? t("messageError")
               : t("messageActionError")}
@@ -756,6 +785,7 @@ export default function MiniChatWindow({
                 key={message.id}
                 message={message}
                 mine={mine}
+                compact
                 showSender={activeType === "ROOM" && !mine}
                 groupStart={groupStart}
                 groupEnd={groupEnd}
@@ -763,6 +793,9 @@ export default function MiniChatWindow({
                 receipt={receipt}
                 conversationImages={conversationImages}
                 onOpenContext={scrollToQuotedMessage}
+                onRetryAssistant={
+                  dmAssistantEnabled ? retryAssistantMessage : undefined
+                }
                 onReply={() => setReplyingTo(message)}
                 onEdit={(content) => saveMessageEdit(message.id, content)}
                 onDelete={() => deleteChatMessage(message.id)}
@@ -779,6 +812,7 @@ export default function MiniChatWindow({
       <ChatDraftComposer
         key={conversationId}
         compact
+        dmAssistantEnabled={dmAssistantEnabled}
         organizationId={organizationId}
         conversationId={conversationId}
         isSending={isSending}

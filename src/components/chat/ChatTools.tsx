@@ -9,6 +9,7 @@ import {
 import { useTranslations } from "next-intl";
 import {
   chatApi,
+  isAssistantMessage,
   type ChatConversation,
   type ChatMessage,
   type ChatPage,
@@ -533,32 +534,61 @@ export default function ChatTools({
             {results.isSuccess && !rows.length && (
               <p>{t("noMessageMatches")}</p>
             )}
-            {rows.map((result) => (
-              <article
-                key={result.id}
-                className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700"
-              >
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  {result.senderName} ·{" "}
-                  {new Date(result.createdAt).toLocaleString()}
-                </p>
-                {mode === "search" ? (
-                  <HighlightedText text={result.content} query={debounced} />
-                ) : (
-                  <MessageContent content={result.content} />
-                )}
-                <ChatAttachments
-                  conversationId={result.conversationId}
-                  attachments={result.attachments}
-                />
-                <button
-                  className={button}
-                  onClick={() => onOpenMessage(result)}
+            {rows.map((result) => {
+              const assistantMsg = isAssistantMessage(result);
+              const sourceState = result.assistantMeta?.sourceState;
+              const hasEditedSource =
+                sourceState === "HAS_EDITED" ||
+                sourceState === "HAS_EDITED_AND_DELETED" ||
+                result.sourceReferences?.some((ref) => ref.status === "EDITED");
+              const hasDeletedSource =
+                sourceState === "HAS_DELETED" ||
+                sourceState === "HAS_EDITED_AND_DELETED" ||
+                result.sourceReferences?.some(
+                  (ref) => ref.status === "DELETED",
+                );
+              return (
+                <article
+                  key={result.id}
+                  className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700"
                 >
-                  {t("viewMessageContext")}
-                </button>
-              </article>
-            ))}
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                      {assistantMsg ? t("assistantBadge") : result.senderName}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <time className="tabular-nums">
+                      {new Date(result.createdAt).toLocaleString()}
+                    </time>
+                    {hasEditedSource && (
+                      <span className="rounded-full bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-500/15 dark:text-warning-300">
+                        {t("assistantSourceEdited")}
+                      </span>
+                    )}
+                    {hasDeletedSource && (
+                      <span className="rounded-full bg-error-50 px-2 py-0.5 text-xs font-medium text-error-700 dark:bg-error-500/15 dark:text-error-300">
+                        {t("assistantSourceDeleted")}
+                      </span>
+                    )}
+                  </div>
+                  {mode === "search" ? (
+                    <HighlightedText text={result.content} query={debounced} />
+                  ) : (
+                    <MessageContent content={result.content} />
+                  )}
+                  <ChatAttachments
+                    conversationId={result.conversationId}
+                    attachments={result.attachments}
+                  />
+                  <button
+                    className={button}
+                    onClick={() => onOpenMessage(result)}
+                  >
+                    {t("viewMessageContext")}
+                  </button>
+                </article>
+              );
+            })}
             {results.hasNextPage && (
               <button
                 className={button}
@@ -604,19 +634,20 @@ export default function ChatTools({
                   {mode === "forward" ? (
                     <button
                       className={button}
-                      disabled={pending}
-                      onClick={() =>
+                      disabled={pending || isAssistantMessage(message)}
+                      onClick={() => {
+                        if (!message || isAssistantMessage(message)) return;
                         void mutate(
                           () =>
                             chatFeatures.forward(
                               target.id,
-                              message!.conversationId,
-                              message!.id,
+                              message.conversationId,
+                              message.id,
                               forwardId.current,
                             ),
                           true,
-                        )
-                      }
+                        );
+                      }}
                     >
                       {t("forwardMessage")}
                     </button>

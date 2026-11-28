@@ -11,6 +11,91 @@ import {
 
 export { normalizeChatAttachmentUrl };
 
+export const CONTINUUM_AI_SENDER_ID = "assistant:continuum_ai" as const;
+export const CONTINUUM_AI_HANDLE = "continuumAI" as const;
+export const CONTINUUM_AI_DISPLAY_NAME = "Continuum AI" as const;
+
+export type ChatCapabilities = Readonly<{
+  dmAssistantEnabled: boolean;
+}>;
+
+export type ChatMessageAuthorType = "USER" | "ASSISTANT";
+
+export type ChatAssistantStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "INSUFFICIENT_EVIDENCE"
+  | "CANCELLED"
+  | "FAILED";
+
+export type ChatAssistantFailureCode =
+  | "SOURCE_CHANGED"
+  | "TRIGGER_DELETED"
+  | "ACCESS_REVOKED"
+  | "SERVICE_UNAVAILABLE"
+  | "TIMEOUT"
+  | "INVALID_MODEL_OUTPUT";
+
+export type ChatAssistantSourceStatus = "ACTIVE" | "EDITED" | "DELETED";
+
+export type ChatAssistantSourceAggregateState =
+  | "FRESH"
+  | "HAS_EDITED"
+  | "HAS_DELETED"
+  | "HAS_EDITED_AND_DELETED";
+
+export type ChatAssistantMentionInput = Readonly<{
+  handle: typeof CONTINUUM_AI_HANDLE;
+  query?: string;
+  timezone?: string;
+}>;
+
+export type ChatAssistantSourceReference = Readonly<{
+  refId: string;
+  messageId: string;
+  senderName: string;
+  createdAt: string;
+  quoteSnippet: string;
+  status: ChatAssistantSourceStatus;
+}>;
+
+export type ChatAssistantMeta = Readonly<{
+  handle: typeof CONTINUUM_AI_HANDLE;
+  queryMode: "TIME_WINDOW" | "KEYWORD" | "HYBRID";
+  partialCoverage: boolean;
+  coverageNote: string | null;
+  sourceState: ChatAssistantSourceAggregateState;
+}>;
+
+export type ChatAssistantJobState = Readonly<{
+  jobId: string;
+  status: ChatAssistantStatus;
+  failureCode: ChatAssistantFailureCode | null;
+  responseMessageId: string | null;
+  updatedAt: string;
+}>;
+
+export type ChatAssistantStatusEvent = Readonly<{
+  conversationId: string;
+  triggerMessageId: string;
+  jobId: string;
+  status: ChatAssistantStatus;
+  failureCode: ChatAssistantFailureCode | null;
+  responseMessageId: string | null;
+  updatedAt: string;
+}>;
+
+export function isAssistantMessage(
+  message: Pick<ChatMessage, "authorType" | "senderId"> | undefined,
+): boolean {
+  if (!message) return false;
+  return (
+    message.authorType === "ASSISTANT" ||
+    message.senderId === CONTINUUM_AI_SENDER_ID
+  );
+}
+
 export type ChatCandidate = Readonly<{
   id: string;
   fullName: string;
@@ -54,6 +139,7 @@ export type ChatConversation = Readonly<{
   markedUnread?: boolean;
   notificationMode?: "ALL" | "MENTIONS" | "NONE";
   unreadCount: number;
+  capabilities?: ChatCapabilities;
   members: readonly ChatParticipant[];
 }>;
 
@@ -65,6 +151,18 @@ export type ChatMessage = Readonly<{
   senderAvatarUrl: string | null;
   content: string;
   createdAt: string;
+  authorType?: ChatMessageAuthorType;
+  assistantMention?: Readonly<{
+    handle: typeof CONTINUUM_AI_HANDLE;
+    query: string;
+    timezone: string;
+  }> | null;
+  triggerMessageId?: string | null;
+  assistantStatus?: "COMPLETED" | "INSUFFICIENT_EVIDENCE" | null;
+  assistantFailureCode?: ChatAssistantFailureCode | null;
+  assistantMeta?: ChatAssistantMeta | null;
+  sourceReferences?: readonly ChatAssistantSourceReference[];
+  assistantState?: ChatAssistantJobState | null;
   mentionUserIds?: readonly string[];
   isPinned?: boolean;
   forwardedFrom?: { senderName: string } | null;
@@ -88,6 +186,7 @@ export type ChatMessage = Readonly<{
 export type ChatPage<T> = Readonly<{
   data: readonly T[];
   nextCursor: string | null;
+  capabilities?: ChatCapabilities;
 }>;
 
 export const chatKeys = {
@@ -253,6 +352,7 @@ export const chatApi = {
       attachments?: readonly string[];
       replyToMessageId?: string;
       mentionUserIds?: readonly string[];
+      assistantMention?: ChatAssistantMentionInput;
     },
   ) =>
     apiClient<ChatMessage>(

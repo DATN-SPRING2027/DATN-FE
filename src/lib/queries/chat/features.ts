@@ -39,13 +39,22 @@ export const chatFeatures = {
     apiClient<{
       content: string;
       mentionUserIds?: string[];
+      assistantMention?: boolean;
       updatedAt: string | null;
     }>(`${path(id)}/draft`, { cache: "no-store" }),
   saveDraft: (
     id: string,
     content: string,
     mentionUserIds: readonly string[] = [],
-  ) => write(`${path(id)}/draft`, "PUT", { content, mentionUserIds }),
+    assistantMention?: boolean,
+  ) =>
+    write(
+      `${path(id)}/draft`,
+      "PUT",
+      assistantMention !== undefined
+        ? { content, mentionUserIds, assistantMention }
+        : { content, mentionUserIds },
+    ),
   ownership: (id: string, userId: string) =>
     write(`${path(id)}/ownership`, "POST", { userId }),
   manager: (id: string, userId: string, active: boolean) =>

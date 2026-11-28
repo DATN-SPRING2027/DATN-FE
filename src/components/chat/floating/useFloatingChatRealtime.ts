@@ -19,6 +19,11 @@ import {
   type ChatPage,
 } from "@/lib/queries/chat/useChat";
 import { preserveLocalReactions } from "../message-state";
+import {
+  applyAssistantStatusToCaches,
+  isAssistantStatusEvent,
+  syncTriggerStateFromAssistantMessage,
+} from "../assistant-utils";
 import { useFloatingChatStore } from "@/stores/floating-chat";
 import {
   acquireSharedChatWsTicket,
@@ -338,6 +343,9 @@ export function useFloatingChatRealtime({
                 void queryClient.invalidateQueries({
                   queryKey: chatKeys.conversations(organizationId),
                 });
+                void queryClient.invalidateQueries({
+                  queryKey: ["chat", organizationId, "messages"],
+                });
               }
             } else if (
               packet.event === "message.created" &&
@@ -346,7 +354,13 @@ export function useFloatingChatRealtime({
               const message = packet.data;
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
-                (page) => mergeChatMessage(page, message),
+                (page) => {
+                  const merged = mergeChatMessage(page, message);
+                  return (
+                    syncTriggerStateFromAssistantMessage(merged, message) ??
+                    merged
+                  );
+                },
               );
               void queryClient.invalidateQueries({
                 queryKey: chatKeys.conversations(organizationId),
@@ -364,6 +378,15 @@ export function useFloatingChatRealtime({
                     .catch(() => undefined);
                 }
               }
+            } else if (
+              packet.event === "assistant.status" &&
+              isAssistantStatusEvent(packet.data)
+            ) {
+              applyAssistantStatusToCaches(
+                queryClient,
+                organizationId,
+                packet.data,
+              );
             } else if (
               (packet.event === "message.updated" ||
                 packet.event === "message.deleted") &&

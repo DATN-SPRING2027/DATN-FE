@@ -17,6 +17,8 @@ import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
   chatApi,
   chatKeys,
+  isAssistantMessage,
+  type ChatAssistantMentionInput,
   type ChatAttachment,
   type ChatCandidate,
   type ChatConversation,
@@ -56,6 +58,14 @@ import { sameMessageGroup } from "./message-layout";
 import { preserveLocalReactions } from "./message-state";
 import { hasReadMessage } from "./read-receipt";
 import { foldSearchText } from "./search-text";
+import {
+  applyAssistantStatusToCaches,
+  getAssistantRetryPayload,
+  isAssistantStatusEvent,
+  isDmAssistantEnabledForConversation,
+  resolveChatSendErrorKey,
+  syncTriggerStateFromAssistantMessage,
+} from "./assistant-utils";
 
 type ComposeMode = "direct" | "room" | null;
 type ConnectionState = "connecting" | "connected" | "reconnecting";
@@ -185,7 +195,7 @@ export default function ChatWorkspace() {
   const [debouncedPersonSearch, setDebouncedPersonSearch] = useState("");
   const [roomTitle, setRoomTitle] = useState("");
   const [roomMembers, setRoomMembers] = useState<ChatCandidate[]>([]);
-  const [sendError, setSendError] = useState(false);
+  const [sendErrorKey, setSendErrorKey] = useState<string | null>(null);
   const [roomError, setRoomError] = useState(false);
   const [roomManagementOpen, setRoomManagementOpen] = useState(false);
   const [roomTitleDraft, setRoomTitleDraft] = useState("");
@@ -289,8 +299,16 @@ export default function ChatWorkspace() {
     setTool(null);
     setSearchOpen(false);
     setMobileListOpen(false);
-    if (message.conversationId === activeId) setContextMessageId(message.id);
-    else {
+    if (message.conversationId === activeId) {
+      if (contextMessageId === message.id) {
+        const target = document.getElementById(`chat-message-${message.id}`);
+        target?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        target?.focus({ preventScroll: true });
+        setHighlightedMessageId(message.id);
+      } else {
+        setContextMessageId(message.id);
+      }
+    } else {
       pendingContext.current = message.id;
       setActiveId(message.conversationId);
       setActiveFallback(null);
@@ -337,6 +355,12 @@ export default function ChatWorkspace() {
       : formatAppTitle(tPage("messages")),
   );
   const activeType = activeConversation?.type ?? (detailAccessLost ? undefined : activeFallback?.type);
+  const conversationsCapabilities =
+    visibleConversationPages?.pages[0]?.capabilities;
+  const dmAssistantEnabled = isDmAssistantEnabledForConversation(
+    activeConversation,
+    visibleConversationDetail?.capabilities ?? conversationsCapabilities,
+  );
   const contextQuery = useChatMessageContextQuery(
     organizationId,
     activeId,
@@ -593,7 +617,13 @@ export default function ChatWorkspace() {
               const message = packet.data;
               queryClient.setQueryData<ChatPage<ChatMessage>>(
                 chatKeys.messages(organizationId, message.conversationId),
-                (page) => mergeMessage(page, message),
+                (page) => {
+                  const merged = mergeMessage(page, message);
+                  return (
+                    syncTriggerStateFromAssistantMessage(merged, message) ??
+                    merged
+                  );
+                },
               );
               void queryClient.invalidateQueries({
                 queryKey: chatKeys.conversations(organizationId),
@@ -611,6 +641,15 @@ export default function ChatWorkspace() {
                     .catch(() => undefined);
                 }
               }
+            } else if (
+              packet.event === "assistant.status" &&
+              isAssistantStatusEvent(packet.data)
+            ) {
+              applyAssistantStatusToCaches(
+                queryClient,
+                organizationId,
+                packet.data,
+              );
             } else if (
               (packet.event === "message.updated" ||
                 packet.event === "message.deleted") &&
@@ -1009,6 +1048,7 @@ export default function ChatWorkspace() {
     setHighlightedMessageId("");
     setSearchOpen(false);
     setReplyingTo(null);
+    setSendErrorKey(null);
     for (const timer of remoteTypingTimers.current.values())
       clearTimeout(timer);
     remoteTypingTimers.current.clear();
@@ -1036,10 +1076,11 @@ export default function ChatWorkspace() {
     files: readonly File[] = [],
     replyToMessageId?: string,
     mentionUserIds: readonly string[] = [],
+    assistantMention?: ChatAssistantMentionInput,
   ): Promise<boolean> => {
     if (!activeId) return false;
     setIsSending(true);
-    setSendError(false);
+    setSendErrorKey(null);
     try {
       const fingerprint = files
         .map(
@@ -1064,12 +1105,16 @@ export default function ChatWorkspace() {
         ...(pending.ids.length > 0 ? { attachments: pending.ids } : {}),
         ...(replyToMessageId ? { replyToMessageId } : {}),
         mentionUserIds,
+        ...(assistantMention ? { assistantMention } : {}),
       });
       pendingUploads.current.delete(clientMessageId);
       queryClient.setQueryData<ChatPage<ChatMessage>>(
         chatKeys.messages(organizationId, activeId),
         (page) => mergeMessage(page, message),
       );
+      if (contextMessageId) {
+        setContextMessageId("");
+      }
       if (replyToMessageId) {
         setReplyingTo((current) =>
           current?.id === replyToMessageId ? null : current,
@@ -1081,11 +1126,26 @@ export default function ChatWorkspace() {
       return true;
     } catch (error) {
       console.error("Failed to send chat message:", error);
-      setSendError(true);
+      setSendErrorKey(resolveChatSendErrorKey(error));
       return false;
     } finally {
       setIsSending(false);
     }
+  };
+
+  const retryAssistantMessage = async (
+    triggerMessage: ChatMessage,
+  ): Promise<boolean> => {
+    const payload = getAssistantRetryPayload(triggerMessage);
+    if (!payload) return false;
+    return sendMessage(
+      payload.content,
+      crypto.randomUUID(),
+      [],
+      undefined,
+      [],
+      payload.assistantMention,
+    );
   };
 
   const saveMessageEdit = async (
@@ -1998,6 +2058,7 @@ export default function ChatWorkspace() {
                             ? t("deliveredBy", { count: deliveredByCount })
                             : t("delivered")
                         : undefined;
+                    const assistantMsg = isAssistantMessage(message);
                     return (
                       <ChatMessageBubble
                         key={message.id}
@@ -2019,7 +2080,11 @@ export default function ChatWorkspace() {
                             conversationId: message.conversationId,
                           })
                         }
-                        onForward={() => setTool({ mode: "forward", message })}
+                        onForward={
+                          assistantMsg
+                            ? undefined
+                            : () => setTool({ mode: "forward", message })
+                        }
                         onPin={() => {
                           void chatFeatures
                             .pin(activeId, message.id, !message.isPinned)
@@ -2031,11 +2096,14 @@ export default function ChatWorkspace() {
                             .catch(() => setMessageActionError(true));
                         }}
                         onReceipts={
-                          mine
+                          mine && !assistantMsg
                             ? () => setTool({ mode: "receipts", message })
                             : undefined
                         }
                         onReport={() => setTool({ mode: "report", message })}
+                        onRetryAssistant={
+                          dmAssistantEnabled ? retryAssistantMessage : undefined
+                        }
                         onReply={() => setReplyingTo(message)}
                         onEdit={(content) =>
                           saveMessageEdit(message.id, content)
@@ -2057,12 +2125,12 @@ export default function ChatWorkspace() {
                   </p>
                 )}
               </div>
-              {sendError && (
+              {sendErrorKey && (
                 <div
                   role="alert"
                   className="border-t border-error-100 bg-error-50 px-4 py-2 text-xs text-error-700 dark:border-error-900 dark:bg-error-950/30 dark:text-error-300"
                 >
-                  {t("sendError")}
+                  {t(sendErrorKey)}
                 </div>
               )}
               {messageActionError && (
@@ -2076,6 +2144,7 @@ export default function ChatWorkspace() {
               <ChatDraftComposer
                 conversationId={activeId}
                 organizationId={organizationId}
+                dmAssistantEnabled={dmAssistantEnabled}
                 members={activeConversation?.members}
                 key={activeId}
                 isSending={isSending}
@@ -2093,13 +2162,20 @@ export default function ChatWorkspace() {
                     : null
                 }
                 onCancelReply={() => setReplyingTo(null)}
-                onSend={(content, id, files, mentionUserIds) =>
+                onSend={(
+                  content,
+                  id,
+                  files,
+                  mentionUserIds,
+                  assistantMention,
+                ) =>
                   sendMessage(
                     content,
                     id,
                     files,
                     replyingTo?.id,
                     mentionUserIds,
+                    assistantMention,
                   )
                 }
                 onTyping={onComposerTyping}
